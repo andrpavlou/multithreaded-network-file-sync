@@ -1,1 +1,1 @@
-README - File Synchronization System (SysPro 2025 - HW2)
+README - Network File Synchronization System (SysPro 2025 - HW2)
