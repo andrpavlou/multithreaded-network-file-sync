@@ -20,6 +20,18 @@
 */
 
 
+/*
+    commands without replying to anyone, just console:
+
+    echo "LIST ./test_dir
+    
+    echo "PULL ./test_dir/test.txt" | nc localhost 2324
+    
+    echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2324
+    echo "PUSH ./test_dir/test.txt 11 Hello world" | nc localhost 2324
+
+*/
+
 volatile sig_atomic_t client_active = 1;
 
 
@@ -33,7 +45,7 @@ int arg_check(int argc, const char** argv, int *port){
 }
 
 
-const char* cmd_to_str(command cmd) {
+const char* cmd_to_str(operation cmd) {
     if(cmd == LIST) return "LIST";
     if(cmd == PULL) return "PULL";
     if(cmd == PUSH) return "PUSH";
@@ -41,14 +53,158 @@ const char* cmd_to_str(command cmd) {
     return "INVALID";
 }
 
-// TODO: struct with both command/dir to parse it completely
-command parse_command(const char* buffer){
-    if(!strncmp(buffer, "LIST", 4)) return LIST;
-    if(!strncmp(buffer, "PULL", 4)) return PULL;
-    if(!strncmp(buffer, "PUSH", 4)) return PUSH;
 
-    return INVALID;
+int parse_command(const char* buffer, command *full_command){
+    
+    if(!strncmp(buffer, "LIST", 4)){
+        full_command->op = LIST;
+        strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
+        full_command->path[BUFFSIZ - 1] = '\0';
+        
+        return 0;
+    }
+
+    if(!strncmp(buffer, "PULL", 4)) {
+        full_command->op = PULL;
+        strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
+        full_command->path[BUFFSIZ - 1] = '\0';
+        
+        return 0;
+    } 
+
+    if(!strncmp(buffer, "PUSH", 4)){
+        full_command->op = PUSH;
+
+        char tmp_buffer[2 * BUFFSIZ];
+        strncpy(tmp_buffer, buffer, sizeof(tmp_buffer) - 1);
+        tmp_buffer[sizeof(tmp_buffer) - 1] = '\0';
+
+
+        char *token = strtok(tmp_buffer, " "); 
+        token = strtok(NULL, " ");       
+        if(!token) return 1;
+
+        strncpy(full_command->path, token, BUFFSIZ - 1);
+        full_command->path[BUFFSIZ - 1] = '\0';
+
+        token = strtok(NULL, " ");       
+        if(!token) return 1;
+
+        full_command->chunk_size = atoi(token);
+
+        token = strtok(NULL, "");        
+        if(!token) return 1;
+
+        strncpy(full_command->data, token, BUFFSIZ - 1);
+        full_command->data[BUFFSIZ - 1] = '\0';
+
+        return 0;
+    }
+
+    return 1;
 }
+
+
+
+
+int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
+    char buf[BUFFSIZ];
+    int dir_fd = open(path, O_RDONLY | O_DIRECTORY);
+    if(dir_fd == -1) {
+        perror("open dir");
+        return -1;
+    }
+
+    int nread;
+    int file_count = 0;
+    while((nread = getdents64(dir_fd, buf, BUFFSIZ * 4)) > 0){
+        int bpos = 0;
+        while(bpos < nread){
+            struct linux_dirent64 *dir = (struct linux_dirent64 *)(buf + bpos);
+            
+            // Skip .. and .
+            if(strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")){
+                strncpy(filenames[file_count], dir->d_name, BUFFSIZ - 1);
+                filenames[file_count][BUFFSIZ - 1] = '\0';
+                file_count++;                
+            }
+            bpos += dir->d_reclen;
+        }
+    }
+
+    if(nread == -1){
+        perror("getdents64");
+        return -1;
+    }
+
+    close(dir_fd);
+    return file_count;
+}
+
+
+int exec_command(const command cmd){
+    switch(cmd.op){
+        case LIST: {
+            char src_files[100][BUFFSIZ];
+            int src_files_count = get_filenames(cmd.path, src_files, BUFFSIZ * 4);\
+            if(src_files_count == -1) return -1;
+
+            for(int i = 0; i < src_files_count; i++){
+                printf("FILE: %s\n", src_files[i]);
+            }
+            printf(".\n");
+
+            break;
+        }
+        case PULL: {
+            int fd_file_read = 0;
+            if((fd_file_read = open(cmd.path, O_RDONLY)) == -1){
+                perror("open");
+                return -1; // will need to send:  filesize = -1 -> File doesnt exist/or something is wrong 
+            }
+
+            ssize_t read_bytes;
+            char buffer[BUFFSIZ];
+            while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){
+                // will need to change this to send it to the host with format: <filesize><space><data…>
+                // filesize = -1 -> File doesnt exist/or something is wrong
+                write(1, buffer, read_bytes); 
+            }
+
+            close(fd_file_read);
+            break;
+        }
+        case PUSH: {
+            if(!cmd.chunk_size) break; // final chunk, nothing to write
+
+            int fd_file_write = 0;
+            fd_file_write = cmd.chunk_size == -1 ?  open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666) : 
+                                                    open(cmd.path, O_WRONLY | O_APPEND);
+            
+            if(fd_file_write == -1){
+                perror("push open\n");
+                return 1;
+            }
+
+        
+            int actual_write_len = cmd.chunk_size == -1 ? strlen(cmd.data) : cmd.chunk_size;
+            ssize_t write_bytes;
+            write_bytes = write(fd_file_write, cmd.data, actual_write_len);
+
+            if(write_bytes != actual_write_len){
+                perror("Invalid written bytes");
+                return 1;
+            }
+
+            close(fd_file_write);
+            break;
+        }
+    default: break;
+    }
+
+    return 0;
+}
+
 void handle_sigint(int sig) {
     client_active = 0;
 }
@@ -73,8 +229,10 @@ int main(int argc, char* argv[]){
     
 
     int sock = 0;
-    if((sock = socket (AF_INET , SOCK_STREAM , 0)) < 0)
+    if((sock = socket(AF_INET , SOCK_STREAM , 0)) < 0)
         perror("socket");
+    
+
 
     server.sin_family = AF_INET ; /* Internet domain */
     server.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -98,22 +256,44 @@ int main(int argc, char* argv[]){
 
         printf("Accepted connection \n") ;
 
-        char buffer[BUFSIZ];
+        char buffer[BUFFSIZ];
+        memset(buffer, 0, sizeof(buffer));
+
         ssize_t n = read(newsock, buffer, sizeof(buffer) - 1);
         
-        if(n < 0) perror("read");
+        if(n <= 0) {
+            perror("read");
+            close(newsock);
+            continue;
+        }
         
-        buffer[n] = '\0';
+        buffer[strcspn(buffer, "\n")] = '\0';
+
+        command cmd;
+        if(parse_command(buffer, &cmd)){
+            perror("Invalid Command\n");
+        }
         
-        command curr_cmd = parse_command(buffer);
-        printf("Message Received: %sWith command: %s\n", buffer, cmd_to_str(curr_cmd));
+
+        // printf("Message Received: %s\n", buffer);
+        // printf("Parsed Command: %s\n", cmd_to_str(cmd.op));
+        // printf("Directory Path: %s\n", cmd.path);
+        // if(cmd.op == PUSH) {
+        //     printf("chunk size: %d\n", cmd.chunk_size);
+        //     printf("Data: %s\n", cmd.data);
+        // }
+
+        if(exec_command(cmd) == -1){
+            perror("exec_command");
+        };
+
 
         
         close(newsock);
     }
+
     close(sock);
     printf("Exiting\n");
-
 
     return 0;
 }

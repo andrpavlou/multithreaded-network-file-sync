@@ -1,7 +1,8 @@
 #ifndef NFS_CLIENT_H
 #define NFS_CLIENT_H
 
-#define BUFSIZ 256
+#define _GNU_SOURCE
+#define BUFFSIZ 256
 
 
 #include <stdio.h>
@@ -17,13 +18,34 @@
 #include <signal.h> /* signal */
 
 
+#include <fcntl.h>
+#include <errno.h>
+#include <dirent.h>
+#include <stdint.h>
+#include <limits.h>
+#include <time.h>
+#include <sys/time.h>
+
+struct linux_dirent64 {
+    ino64_t        d_ino;
+    off64_t        d_off;
+    unsigned short d_reclen;
+    unsigned char  d_type;
+    char           d_name[];
+};
 
 typedef enum{
     LIST,
     PULL,
     PUSH, 
     INVALID
-} command;
+} operation;
 
+typedef struct {
+    operation op;
+    char path[BUFSIZ];      // list + pull: dir for push
+    char data[BUFSIZ];      // push
+    int chunk_size;         // push
+} command;
 
 #endif
