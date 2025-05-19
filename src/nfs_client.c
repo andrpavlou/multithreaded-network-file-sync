@@ -23,12 +23,12 @@
 /*
     commands without replying to anyone, just console:
 
-    echo "LIST ./test_dir
+    echo "LIST" ./test_dir | nc localhost 2324
     
-    echo "PULL ./test_dir/test.txt" | nc localhost 2324
+    echo "PULL" ./test_dir/test.txt" | nc localhost 2324
     
-    echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2324
-    echo "PUSH ./test_dir/test.txt 11 Hello world" | nc localhost 2324
+    echo "PUSH" ./test_dir/test.txt -1 Hello world" | nc localhost 2324
+    echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2324
 
 */
 
@@ -150,9 +150,11 @@ int exec_command(const command cmd){
             if(src_files_count == -1) return -1;
 
             for(int i = 0; i < src_files_count; i++){
-                printf("FILE: %s\n", src_files[i]);
+                char output_buff[BUFFSIZ];
+                int len = snprintf(output_buff, sizeof(output_buff), "%s\n", src_files[i]);                
+                write(1, output_buff, len);
             }
-            printf(".\n");
+            write(1, ".\n", 2);
 
             break;
         }
