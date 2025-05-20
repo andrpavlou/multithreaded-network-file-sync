@@ -18,7 +18,7 @@ CLIENT_OBJ 		= $(OBJDIR)/nfs_client.o
 MANAGER_OBJ 	= $(OBJDIR)/nfs_manager.o
 UTILS_OBJ 		= $(OBJDIR)/utils.o
 SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info.o
-SYNC_task_OBJ 	= $(OBJDIR)/sync_task.o
+SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task.o
 
 
 CLIENT_BIN 	= $(BINDIR)/nfs_client
@@ -37,7 +37,7 @@ utils: $(UTILS_OBJ)
 $(UTILS_OBJ): $(UTILS_SRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-sync_infos: $(SYNC_INFO_OBJ)
+sync_info: $(SYNC_INFO_OBJ)
 $(SYNC_INFO_OBJ): $(SYNC_INFO_SRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -57,10 +57,10 @@ $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
 
 manager: $(MANAGER_BIN) 
 $(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) | $(BINDIR)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 
 
