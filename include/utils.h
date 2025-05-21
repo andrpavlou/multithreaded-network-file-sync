@@ -14,5 +14,5 @@
 int line_counter_of_file(int fd, int max_len);
 int create_cf_pairs(int fd_config, config_pairs *conf_pairs);
 int read_next_line_from_file(int fd, char *line, int max_len);
-
+int check_args_manager(int argc, char *argv[], char** logfile, char** config_file, int *worker_limit, int *port, int *buffer_size);
 #endif

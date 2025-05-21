@@ -1,3 +1,1 @@
-/source1@127.0.0.1:2323 /backup1@127.0.0.1:2424
-/logs@192.168.1.10:3000 /mirror_logs@192.168.1.11:4000
-/data/in@10.0.0.5:8080 /data/out@10.0.0.6:9090
+source1@localhost:2323 backup1@localhost:2424

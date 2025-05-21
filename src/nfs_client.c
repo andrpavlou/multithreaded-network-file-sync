@@ -108,6 +108,7 @@ int parse_command(const char* buffer, command *full_command){
 
 
 int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
+    printf("PATH %s\n\n", path);
     char buf[BUFFSIZ];
     int dir_fd = open(path, O_RDONLY | O_DIRECTORY);
     if(dir_fd == -1) {
@@ -142,7 +143,22 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
 }
 
 
-int exec_command(const command cmd){
+
+
+
+
+int write_all(int fd, const void *buff, size_t size) {
+    int sent, n;
+    for(sent = 0; sent < size; sent+=n) {
+        if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
+    }
+
+    return sent;
+}
+
+
+
+int exec_command(const command cmd, int newsock){
     switch(cmd.op){
         case LIST: {
             char src_files[100][BUFFSIZ];
@@ -152,25 +168,41 @@ int exec_command(const command cmd){
             for(int i = 0; i < src_files_count; i++){
                 char output_buff[BUFFSIZ];
                 int len = snprintf(output_buff, sizeof(output_buff), "%s\n", src_files[i]);                
-                write(1, output_buff, len);
+                write(newsock, output_buff, len);
             }
-            write(1, ".\n", 2);
+            write(newsock, ".\n", 2);
 
             break;
         }
         case PULL: {
             int fd_file_read = 0;
             if((fd_file_read = open(cmd.path, O_RDONLY)) == -1){
-                perror("open");
-                return -1; // will need to send:  filesize = -1 -> File doesnt exist/or something is wrong 
+                
+                char error_msg[] = "-1\n";
+                write_all(newsock, error_msg, strlen(error_msg));
+                
+                return -1;
+            }
+            
+            off_t file_size = lseek(fd_file_read, 0, SEEK_END);
+            lseek(fd_file_read, 0, SEEK_SET);
+
+            char size_buf[BUFFSIZ / 4];
+            int len = snprintf(size_buf, sizeof(size_buf), "%ld ", file_size);
+            if(write_all(newsock, size_buf, len) == -1){
+                perror("Write size");
+                close(fd_file_read);
+                
+                return -1;
             }
 
             ssize_t read_bytes;
             char buffer[BUFFSIZ];
             while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){
-                // will need to change this to send it to the host with format: <filesize><space><data…>
-                // filesize = -1 -> File doesnt exist/or something is wrong
-                write(1, buffer, read_bytes); 
+                if(write_all(newsock, buffer, read_bytes) == -1){
+                    perror("Write full");
+                    break;
+                }
             }
 
             close(fd_file_read);
@@ -211,6 +243,8 @@ void handle_sigint(int sig) {
     client_active = 0;
 }
 
+
+// lsof -i :port
 int main(int argc, char* argv[]){
     int port = 0;   
     if(arg_check(argc, (const char**)argv, &port)){
@@ -234,15 +268,19 @@ int main(int argc, char* argv[]){
     if((sock = socket(AF_INET , SOCK_STREAM , 0)) < 0)
         perror("socket");
     
-
+    int optval = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
     server.sin_family = AF_INET ; /* Internet domain */
     server.sin_addr.s_addr = htonl(INADDR_ANY);
     server.sin_port = htons(port) ; /* The given port */
     /* Bind socket to address */
 
-    if(bind(sock, serverptr, sizeof(server)) < 0)
-        perror("bind") ;
+
+    if(bind(sock, serverptr, sizeof(server)) < 0){
+        perror("bind");
+        exit(1);
+    }
 
     if(listen(sock, 5) < 0)
         perror (" listen ") ;
@@ -285,7 +323,7 @@ int main(int argc, char* argv[]){
         //     printf("Data: %s\n", cmd.data);
         // }
 
-        if(exec_command(cmd) == -1){
+        if(exec_command(cmd, newsock) == -1){
             perror("exec_command");
         };
 

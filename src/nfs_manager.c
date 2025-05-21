@@ -4,37 +4,94 @@
 #include "sync_info.h"
 
 
-int check_args(int argc, char *argv[], char** logfile, char** config_file, int *worker_limit, int *port, int *buffer_size){
-    int found = 0;
-    for(int i = 1; i < argc; i++){
-        if(strncmp(argv[i], "-l", 2) == 0 && i + 1 < argc){
-            *logfile = argv[++i];
-        }
-
-        else if(!strncmp(argv[i], "-c", 2) && i + 1 < argc){
-            *config_file = argv[++i];
-        }
-
-        else if(!strncmp(argv[i], "-n", 2) && i + 1 < argc){
-            *worker_limit = atoi(argv[++i]);
-            found = 1;
-        }
-
-        else if(!strncmp(argv[i], "-p", 2)  && i + 1 < argc){
-
-            *port = atoi(argv[++i]);
-        }
-
-        else if(!strncmp(argv[i], "-b", 2) && i + 1 < argc)
-            *buffer_size = atoi(argv[++i]);
-        
-        else return 1;
+/*
+  socket()
+    |
+  connect() 
+    |
+  write()
+    |
+  read()
+*/
+int write_all(int fd, const void *buff, size_t size) {
+    int sent, n;
+    for(sent = 0; sent < size; sent+=n) {
+        if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
     }
 
-    *worker_limit = found == 0 ? 5 : *worker_limit;
+    return sent;
+}
+
+int parse_read_buffer(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
+    char temp_buff[BUFSIZ];
+    strncpy(temp_buff, rec_buff, sizeof(temp_buff) - 1);
+    temp_buff[sizeof(temp_buff) - 1] = '\0';
+
+    char *token = strtok(temp_buff, " ");
+    if(!token) return 1;
+
+    *rec_file_len = atoi(token);
+    if(*rec_file_len == -1){
+        perror("File not found from client");
+        return 1;
+    }
+
+    char *first_space = strchr(rec_buff, ' ');
+    if(first_space == NULL) return 1;
+
+    *file_content = first_space + 1;
 
     return 0;
 }
+
+void *worker_thread(void *arg){
+    config_pairs* conf_pairs = (config_pairs*) arg;
+    struct sockaddr_in servadd; /* The address of server */
+    struct hostent *hp; /* to resolve server ip */
+    int sock, n_read; /* socket and message length */
+    char buffer[BUFFSIZ]; /* to receive message */
+
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        perror( "socket" );
+    
+    if((hp = gethostbyname(conf_pairs->source_ip)) == NULL) {
+        perror("gethostbyname"); 
+        exit(1);
+    }
+
+    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
+    servadd.sin_port = htons(conf_pairs->source_port); /* set port number */
+    servadd.sin_family = AF_INET ; /* set socket type */
+
+    if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
+        perror("connect");
+    
+    char pull_cmd_buff[BUFFSIZ * 4];
+    snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
+    conf_pairs[0].source_dir_path[BUFFSIZ - 1] = '\0';
+
+    if(write_all(sock, pull_cmd_buff, strlen(pull_cmd_buff)) == -1)
+        perror("write");
+
+    
+    while((n_read = read(sock, buffer, BUFFSIZ)) > 0);
+    
+    ssize_t rec_file_len = 0;
+    char *file_content = NULL;
+    parse_read_buffer(buffer, &rec_file_len, &file_content);
+
+    printf("SIZE: %ld\n", rec_file_len);
+    printf("CONTENT:[%s]\n", file_content);
+    
+    // if(write_all(STDOUT_FILENO, buffer, n_read) < n_read)
+    //     perror("fwrite");
+    
+    close(sock);
+
+    return NULL;
+}
+
+
 
 
 
@@ -47,7 +104,7 @@ int main(int argc, char *argv[]){
     int worker_limit    = -1;
     int buffer_size     = -1;
 
-    if(check_args(argc, argv, &logfile, &config_file, &worker_limit, &port, &buffer_size)){
+    if(check_args_manager(argc, argv, &logfile, &config_file, &worker_limit, &port, &buffer_size)){
         perror("USAGE: ./nfs_manager -l <logfile> -c <config_file> -n <worker_limit> -p <port> -b <buffer_size>");
         return 1;
     }
@@ -72,19 +129,10 @@ int main(int argc, char *argv[]){
     config_pairs *conf_pairs = malloc(sizeof(config_pairs) * total_config_pairs);
     create_cf_pairs(fd_config, conf_pairs);
     
-    for (int i = 0; i < total_config_pairs; i++) {
-        printf("Pair: %d\n", i);
-        printf("  Raw Source:\t\t%s\n", conf_pairs[i].source_full_path);
-        printf("  Parsed Source Path:\t%s\n", conf_pairs[i].source_dir_path);
-        printf("  Parsed Source IP:\t%s\n", conf_pairs[i].source_ip);
-        printf("  Parsed Source Port:\t%d\n", conf_pairs[i].source_port);
+    pthread_t worker_th;
+    pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
+    pthread_join(worker_th, NULL);
 
-        printf("  Raw Target:\t\t%s\n", conf_pairs[i].target_full_path);
-        printf("  Parsed Target Path:\t%s\n", conf_pairs[i].target_dir_path);
-        printf("  Parsed Target IP:\t%s\n", conf_pairs[i].target_ip);
-        printf("  Parsed Target Port:\t%d\n", conf_pairs[i].target_port);
-        printf("--------------------------------------------------\n");
-    }
 
     return 0;
 }
