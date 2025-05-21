@@ -22,7 +22,7 @@ int write_all(int fd, const void *buff, size_t size) {
     return sent;
 }
 
-int parse_read_buffer(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
+int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
     char temp_buff[BUFSIZ];
     strncpy(temp_buff, rec_buff, sizeof(temp_buff) - 1);
     temp_buff[sizeof(temp_buff) - 1] = '\0';
@@ -48,8 +48,7 @@ void *worker_thread(void *arg){
     config_pairs* conf_pairs = (config_pairs*) arg;
     struct sockaddr_in servadd; /* The address of server */
     struct hostent *hp; /* to resolve server ip */
-    int sock, n_read; /* socket and message length */
-    char buffer[BUFFSIZ]; /* to receive message */
+    int sock, n_read;
 
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         perror( "socket" );
@@ -66,25 +65,98 @@ void *worker_thread(void *arg){
     if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
         perror("connect");
     
+    ////////////// PULL COMMAND //////////////
+
+    // Request pull of given text TODO: make it dynamic with list
     char pull_cmd_buff[BUFFSIZ * 4];
+    memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
+
     snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
-    conf_pairs[0].source_dir_path[BUFFSIZ - 1] = '\0';
 
     if(write_all(sock, pull_cmd_buff, strlen(pull_cmd_buff)) == -1)
         perror("write");
 
+    // Read response of pull command 
+    char pull_response_buff[BUFFSIZ * 4];
+    if((n_read = read(sock, pull_response_buff, sizeof(pull_response_buff))) <= 0){
+        perror("pull read");
+        close(sock);
+        return NULL;
+    }
+    pull_response_buff[n_read] = '\0';
+    close(sock);
     
-    while((n_read = read(sock, buffer, BUFFSIZ)) > 0);
+    // Parse response of pull command 
+    ssize_t rec_file_len    = 0;
+    char *file_content      = NULL;
     
-    ssize_t rec_file_len = 0;
-    char *file_content = NULL;
-    parse_read_buffer(buffer, &rec_file_len, &file_content);
+    int status = parse_pull_read(pull_response_buff, &rec_file_len, &file_content);
+    if(status){
+        perror("parse pull");
+        close(1);
+    }
 
     printf("SIZE: %ld\n", rec_file_len);
     printf("CONTENT:[%s]\n", file_content);
     
-    // if(write_all(STDOUT_FILENO, buffer, n_read) < n_read)
-    //     perror("fwrite");
+    ////////////// PUSH COMMAND //////////////
+
+    // Open new connection for target to push data
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        perror( "socket" );
+    
+    if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
+        perror("gethostbyname"); 
+        exit(1);
+    }
+
+    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
+    servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
+    servadd.sin_family = AF_INET ; /* set socket type */
+
+    // First connection to create the file, must weather we need to do this with -1 on first run and then send it.
+    if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
+        perror("connect");
+    
+    // Creates file on remote host
+    char push_cmd_buff[BUFFSIZ * 4];
+    snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %d %s", 
+        conf_pairs->target_dir_path,
+        FILE_NF_LEN, 
+        "");
+
+    if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
+        perror("fwrite");
+
+        
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        perror( "socket" );
+    
+    if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
+        perror("gethostbyname"); 
+        exit(1);
+    }
+
+    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
+    servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
+    servadd.sin_family = AF_INET ; /* set socket type */
+
+    if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
+        perror("connect");
+    
+    
+    // Send the actual text...
+    memset(push_cmd_buff, 0, sizeof(push_cmd_buff));
+    snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %ld %s", 
+        conf_pairs->target_dir_path,
+        rec_file_len, 
+        file_content);        
+
+
+
+    if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
+        perror("fwrite");
+
     
     close(sock);
 

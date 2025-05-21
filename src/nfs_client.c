@@ -27,8 +27,8 @@
     
     echo "PULL" ./test_dir/test.txt" | nc localhost 2324
     
-    echo "PUSH" ./test_dir/test.txt -1 Hello world" | nc localhost 2324
-    echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2324
+    echo "PUSH" ./test_dir/test.txt -1 "Hello world" | nc localhost 2324
+    echo "PUSH" ./test_dir/test.txt 11 "Hello world" | nc localhost 2324
 
 */
 
@@ -210,17 +210,22 @@ int exec_command(const command cmd, int newsock){
         }
         case PUSH: {
             if(!cmd.chunk_size) break; // final chunk, nothing to write
+            
+            
+            // printf("Parsed chunk_size: %d\n", cmd.chunk_size);
+            // printf("Parsed data: [%s]\n", cmd.data);
 
             int fd_file_write = 0;
             fd_file_write = cmd.chunk_size == -1 ?  open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666) : 
                                                     open(cmd.path, O_WRONLY | O_APPEND);
             
+
+
             if(fd_file_write == -1){
                 perror("push open\n");
                 return 1;
             }
 
-        
             int actual_write_len = cmd.chunk_size == -1 ? strlen(cmd.data) : cmd.chunk_size;
             ssize_t write_bytes;
             write_bytes = write(fd_file_write, cmd.data, actual_write_len);
@@ -248,7 +253,7 @@ void handle_sigint(int sig) {
 int main(int argc, char* argv[]){
     int port = 0;   
     if(arg_check(argc, (const char**)argv, &port)){
-        perror("USAGE");
+        perror("USAGE: ./nfs_client -p <port_number>");
         return 1;
     }
 
@@ -315,13 +320,13 @@ int main(int argc, char* argv[]){
         }
         
 
-        // printf("Message Received: %s\n", buffer);
-        // printf("Parsed Command: %s\n", cmd_to_str(cmd.op));
-        // printf("Directory Path: %s\n", cmd.path);
-        // if(cmd.op == PUSH) {
-        //     printf("chunk size: %d\n", cmd.chunk_size);
-        //     printf("Data: %s\n", cmd.data);
-        // }
+        printf("Message Received: %s\n", buffer);
+        printf("Parsed Command: %s\n", cmd_to_str(cmd.op));
+        printf("Directory Path: %s\n", cmd.path);
+        if(cmd.op == PUSH) {
+            printf("chunk size: %d\n", cmd.chunk_size);
+            printf("Data: %s\n", cmd.data);
+        }
 
         if(exec_command(cmd, newsock) == -1){
             perror("exec_command");

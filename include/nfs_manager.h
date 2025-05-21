@@ -6,7 +6,8 @@
 #include <sys/types.h>
 #include <stddef.h>
 
-#define BUFFSIZ 256
+#define FILE_NF_LEN -1
+#define BUFFSIZ     256
 
 typedef struct {
     char source_full_path[BUFFSIZ];
