@@ -72,93 +72,124 @@ void *worker_thread(void *arg){
     memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
 
     snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
-
     if(write_all(sock, pull_cmd_buff, strlen(pull_cmd_buff)) == -1)
         perror("write");
 
-    // Read response of pull command 
-    char pull_response_buff[BUFFSIZ * 4];
-    if((n_read = read(sock, pull_response_buff, sizeof(pull_response_buff))) <= 0){
-        perror("pull read");
-        close(sock);
-        return NULL;
+    
+    char num_buff[32];
+    char space_ch;
+    int ind = 0;
+
+    while(read(sock, &space_ch, 1) == 1){
+        if(ch == ' ')
+            break;
+        
+        num_buff[ind++] = space_ch;
     }
-    pull_response_buff[n_read] = '\0';
-    close(sock);
-    
-    // Parse response of pull command 
-    ssize_t rec_file_len    = 0;
-    char *file_content      = NULL;
-    
-    int status = parse_pull_read(pull_response_buff, &rec_file_len, &file_content);
-    if(status){
-        perror("parse pull");
-        close(1);
+    num_buff[ind] = '\0';
+    long file_size = strtol(num_buff, NULL, 10);
+
+    printf("CONTENT: ");
+    char pull_buffer[BUFFSIZ];
+    ssize_t total_read = 0;
+    while(total_read < file_size){
+        int request_bytes = file_size - total_read < BUFFSIZ ? file_size - total_read : BUFFSIZ;
+
+        n_read = read(sock, pull_buffer, request_bytes);
+        if(n_read < request_bytes){
+            perror("read");
+        }
+
+        pull_buffer[n_read] = '\0';
+        printf("%s", pull_buffer);
+        
+        total_read += n_read;
+        memset(pull_buffer, 0, sizeof(pull_buffer)); 
     }
 
-    printf("SIZE: %ld\n", rec_file_len);
-    printf("CONTENT:[%s]\n", file_content);
+    // Read response of pull command 
+    // char pull_response_buff[BUFFSIZ];
+    // if((n_read = read(sock, pull_response_buff, sizeof(pull_response_buff))) <= 0){
+    //     perror("pull read");
+    //     close(sock);
+    //     return NULL;
+    // }
+    // pull_response_buff[n_read] = '\0';
+    // close(sock);
+    
+    // // Parse response of pull command 
+    // ssize_t rec_file_len    = 0;
+    // char *file_content      = NULL;
+    
+    // int status = parse_pull_read(pull_response_buff, &rec_file_len, &file_content);
+    // if(status){
+    //     perror("parse pull");
+    //     close(1);
+    // }
+
+    // printf("SIZE: %ld\n", rec_file_len);
+    // printf("CONTENT:[%s]\n", file_content);
     
     ////////////// PUSH COMMAND //////////////
 
     // Open new connection for target to push data
-    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-        perror( "socket" );
+    // if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    //     perror( "socket" );
     
-    if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
-        perror("gethostbyname"); 
-        exit(1);
-    }
+    // if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
+    //     perror("gethostbyname"); 
+    //     exit(1);
+    // }
 
-    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
-    servadd.sin_family = AF_INET ; /* set socket type */
+    // memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
+    // servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
+    // servadd.sin_family = AF_INET ; /* set socket type */
 
-    // First connection to create the file, must weather we need to do this with -1 on first run and then send it.
-    if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
-        perror("connect");
+    // // First connection to create the file, must weather we need to do this with -1 on first run and then send it.
+    // if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
+    //     perror("connect");
     
-    // Creates file on remote host
-    char push_cmd_buff[BUFFSIZ * 4];
-    snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %d %s", 
-        conf_pairs->target_dir_path,
-        FILE_NF_LEN, 
-        "");
+    // // Creates file on remote host
+    // char push_cmd_buff[BUFFSIZ * 4];
+    // snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %d %s", 
+    //     conf_pairs->target_dir_path,
+    //     FILE_NF_LEN, 
+    //     "");
 
-    if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
-        perror("fwrite");
+    // if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
+    //     perror("fwrite");
 
         
-    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-        perror( "socket" );
+    // if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    //     perror( "socket" );
     
-    if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
-        perror("gethostbyname"); 
-        exit(1);
-    }
+    // if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
+    //     perror("gethostbyname"); 
+    //     exit(1);
+    // }
 
-    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
-    servadd.sin_family = AF_INET ; /* set socket type */
+    // memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
+    // servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
+    // servadd.sin_family = AF_INET ; /* set socket type */
 
-    if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
-        perror("connect");
+    // if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
+    //     perror("connect");
     
     
-    // Send the actual text...
-    memset(push_cmd_buff, 0, sizeof(push_cmd_buff));
-    snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %ld %s", 
-        conf_pairs->target_dir_path,
-        rec_file_len, 
-        file_content);        
+    // // Send the actual text...
+    // memset(push_cmd_buff, 0, sizeof(push_cmd_buff));
+    // snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %ld %s", 
+    //     conf_pairs->target_dir_path,
+    //     rec_file_len, 
+    //     file_content);        
 
 
 
-    if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
-        perror("fwrite");
+    // if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
+    //     perror("fwrite");
 
     
-    close(sock);
+    // close(sock);
 
     return NULL;
 }
