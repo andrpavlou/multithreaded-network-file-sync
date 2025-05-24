@@ -80,18 +80,17 @@ void *worker_thread(void *arg){
     char space_ch;
     int ind = 0;
 
+    // read the size of the file we are about to send
     while(read(sock, &space_ch, 1) == 1){
-        if(space_ch == ' ')
-            break;
+        if(space_ch == ' ') break;
         
         num_buff[ind++] = space_ch;
     }
     num_buff[ind] = '\0';
-    long file_size = strtol(num_buff, NULL, 10);
+    long file_size = strtol(num_buff, NULL, 10); 
 
 
-
-    // Connect once to target
+    // Establish connection with the target host to send the file //
     int push_sock = socket(AF_INET, SOCK_STREAM, 0);
     if(push_sock == -1) perror("socket");
 
@@ -108,33 +107,35 @@ void *worker_thread(void *arg){
 
     if(connect(push_sock, (struct sockaddr*)&push_addr, sizeof(push_addr)) != 0)
         perror("connect");
-
-    // char push_cmd_buff[BUFFSIZ * 4];
-    // snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %d %s", 
-    //         conf_pairs->target_dir_path, 
-    //         -1,
-    //         " ");
-
-    // if(write_all(push_sock, push_cmd_buff, strlen(push_cmd_buff)) == -1) {
-    //     perror("write push header");
-    // }
-
     
-    ssize_t total_read = 0;
+    
+    
+    ssize_t total_read              = 0;
+    unsigned short first_push_write = 0;
+
     char pull_buffer[BUFFSIZ];
     char push_buffer[BUFFSIZ];
-    
-    printf("Size: %ld \n", file_size);
+
     // Read response of pull command 
     while(total_read < file_size){
-        ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 1;
+        ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 2;
+
+        // TODO: Change after requesting "LIST" cmd with dynamic files.
         ssize_t const_extra_bytes = strlen("PUSH ") + strlen("/test.txt ") + BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1;
-        
         request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
 
+        if(!request_bytes){
+            int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+                conf_pairs->target_dir_path,
+                request_bytes,
+                pull_buffer);
 
-        
-        if(request_bytes == 0) break;
+            if(write_all(push_sock, push_buffer, len) == -1) {
+                perror("write push");
+            }
+            printf("\nSENT\n");
+            break;
+        }
         
         n_read = read(sock, pull_buffer, request_bytes);
         if(n_read < request_bytes){
@@ -142,22 +143,22 @@ void *worker_thread(void *arg){
             break;
         }
         pull_buffer[n_read] = '\0';
-        // printf("----\nREQ: %d\nREAD: %d\n%s\n----------\n", request_bytes, n_read, pull_buffer);
-
-
-        int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+        
+        /* Send -1 batch size to create the file if its the first write
+         * Otherwise send the bytes read from other host -> request_bytes
+         */
+        int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
+        int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %d %s", 
             conf_pairs->target_dir_path,
-            request_bytes,
+            write_batch_bytes,
             pull_buffer);
 
-        printf("SIZE OF BUFFER %d REQUEST BYTES %ld CONST EXTRA %ld \n", len, request_bytes, const_extra_bytes);
-
-        // printf("--------\nTGT: %s\nWRITE: %d\n%s\n----------\n", conf_pairs->target_dir_path, n_read, push_buffer);
 
         if(write_all(push_sock, push_buffer, len) == -1) {
             perror("write push");
         }
-        
+        first_push_write = 1;
+
         char ack[8] = {0};
         int ack_read = read(push_sock, ack, sizeof(ack) - 1);
         if(ack_read <= 0 || strncmp(ack, "ACK", 3)){
