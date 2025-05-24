@@ -8,6 +8,8 @@
 
 #define FILE_NF_LEN -1
 #define BUFFSIZ     256
+#define MAX_FILES   100
+
 
 typedef struct {
     char source_full_path[BUFFSIZ];

@@ -114,7 +114,7 @@ int parse_command(const char* buffer, command *full_command){
 
 
 
-int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
+int get_filenames(const char *path, char filenames[][BUFFSIZ]){
     printf("PATH [%s]\n\n", path);
 
     char buf[BUFFSIZ];
@@ -138,7 +138,7 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
                 filenames[file_count][BUFFSIZ - 1] = '\0';
 
                 file_count++;
-                if(file_count >= max_files) return 1;
+                if(file_count >= MAX_FILES) return 1;
             }
             bpos += dir->d_reclen;
         }
@@ -174,8 +174,8 @@ int exec_command(const command cmd, int newsock){
         clean_path[BUFFSIZ - 1] = '\0';
         clean_path[strcspn(clean_path, "\n")] = '\0';
         
-        char src_files[100][BUFFSIZ];
-        int src_files_count = get_filenames(clean_path, src_files, 100);
+        char src_files[MAX_FILES][BUFFSIZ];
+        int src_files_count = get_filenames(clean_path, src_files);
 
         if(src_files_count == -1) return -1;
 

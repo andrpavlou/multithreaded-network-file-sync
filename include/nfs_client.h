@@ -3,6 +3,7 @@
 
 #define _GNU_SOURCE
 #define BUFFSIZ 256
+#define MAX_FILES 100
 
 
 #include <stdio.h>

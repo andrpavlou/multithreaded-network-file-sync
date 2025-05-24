@@ -70,6 +70,9 @@ void *worker_thread(void *arg){
     int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", conf_pairs->source_dir_path);
     list_cmd_buff[list_len] = '\0';
 
+
+    //========== Request List Command ========== //
+
     if(write_all(sock, list_cmd_buff, list_len) == -1){
         perror("list write");
         return NULL;
@@ -77,9 +80,10 @@ void *worker_thread(void *arg){
 
     size_t total_read_list      = 0;
     size_t list_buff_capacity   = 0;
-    
+
     char *list_reply_buff = NULL;
     do{
+        // Allocate more memory for buffer if there is not enough space
         if(list_buff_capacity - total_read_list < BUFFSIZ){
             list_buff_capacity += BUFFSIZ;
             list_reply_buff = realloc(list_reply_buff, list_buff_capacity);
@@ -100,31 +104,41 @@ void *worker_thread(void *arg){
         list_reply_buff[total_read_list] = '\0';
     } while(strstr(list_reply_buff, ".\nACK\n") == NULL); // Keep reading until we receive '.\nACK\n'
         
+
     // Locate ack and remove it
     char *ack_start = strstr(list_reply_buff, "\nACK\n");
     if(ack_start) *ack_start = '\0'; 
 
-    // printf("Rec file list:\n%s\nSize: %ld\n", list_reply_buff, total_read_list);
+    int total_src_files = 0;
+    char *file_buff[MAX_FILES];
     char *curr_file = strtok(list_reply_buff, "\n");
-    while(curr_file && strcmp(curr_file, ".") != 0) {
-        printf("file: %s\n", curr_file);
+    
+    file_buff[total_src_files] = curr_file;
+    while(curr_file && strcmp(curr_file, ".") != 0 && total_src_files < MAX_FILES){
+        total_src_files++;
+
         curr_file = strtok(NULL, "\n");
+        file_buff[total_src_files] = curr_file;
     }
 
-    free(list_reply_buff);
+    for(int i = 0; i < total_src_files; i++){
+        printf("File: %s ", file_buff[i]);
+    }
 
-
-
-    // Request pull of given text TODO: make it dynamic with list
+    // int curr_file_counter = 0;
+    // while(curr_file_counter < total_src_files){
+    // Request pull of given text
     char pull_cmd_buff[BUFFSIZ];
     memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
 
-    int len = snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
+    int len = snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), 
+        "PULL %s/test.txt", 
+        conf_pairs->source_dir_path);
+
     if(write_all(sock, pull_cmd_buff, len) == -1){
         perror("pull write");
         return NULL;
     }
-
         
     int ind = 0;
     char space_ch;
@@ -170,18 +184,20 @@ void *worker_thread(void *arg){
         ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 2;
 
         // TODO: Change after requesting "LIST" cmd with dynamic files.
-        ssize_t const_extra_bytes = strlen("PUSH ") + strlen("/test.txt ") + BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1;
+        ssize_t const_extra_bytes = strlen("PUSH") + strlen("/test.txt") + 
+        BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1 + 2; // 2 spaces + 1 "/"
+
         request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
 
         if(!request_bytes){
-            // int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
-            //     conf_pairs->target_dir_path,
-            //     request_bytes,
-            //     pull_buffer);
+            int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+                conf_pairs->target_dir_path,
+                request_bytes,
+                pull_buffer);
 
-            // if(write_all(push_sock, push_buffer, len) == -1) {
-            //     perror("push write");
-            // }
+            if(write_all(push_sock, push_buffer, len) == -1) {
+                perror("push write");
+            }
             break;
         }
         
@@ -193,9 +209,9 @@ void *worker_thread(void *arg){
         pull_buffer[n_read] = '\0';
         
         /*
-         * Send -1 batch size to create the file if it's the first write,
-         * otherwise send the bytes read from other host -> request_bytes
-         */
+        * Send -1 batch size to create the file if it's the first write,
+        * otherwise send the bytes read from other host -> request_bytes
+        */
         int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
         int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %d %s", 
             conf_pairs->target_dir_path,
@@ -219,10 +235,12 @@ void *worker_thread(void *arg){
         memset(pull_buffer, 0, sizeof(pull_buffer)); 
         memset(push_buffer, 0, sizeof(push_buffer)); 
     }
-
-    close(sock);
     close(push_sock);
 
+
+    free(list_reply_buff);
+
+    close(sock);
     return NULL;
 }
 
