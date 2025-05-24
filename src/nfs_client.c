@@ -23,12 +23,12 @@
 /*
     commands without replying to anyone, just console:
 
-    echo "LIST ./test_dir" | nc localhost 2324
+    echo "LIST ./test_dir" | nc localhost 2424
     
-    echo "PULL ./test_dir/test.txt" | nc localhost 2324
+    echo "PULL ./test_dir/test.txt" | nc localhost 2424
     
-    echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2324
-    echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2324
+    echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2424
+    echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2424
 
 */
 
@@ -115,7 +115,8 @@ int parse_command(const char* buffer, command *full_command){
 
 
 int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
-    printf("PATH %s\n\n", path);
+    printf("PATH [%s]\n\n", path);
+
     char buf[BUFFSIZ];
     int dir_fd = open(path, O_RDONLY | O_DIRECTORY);
     if(dir_fd == -1) {
@@ -123,18 +124,21 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ], int max_files){
         return -1;
     }
 
-    int nread;
-    int file_count = 0;
-    while((nread = getdents64(dir_fd, buf, BUFFSIZ * 4)) > 0){
+    int nread       = 0;
+    int file_count  = 0;
+    while((nread = getdents64(dir_fd, buf, BUFFSIZ)) > 0){
         int bpos = 0;
         while(bpos < nread){
             struct linux_dirent64 *dir = (struct linux_dirent64 *)(buf + bpos);
             
             // Skip .. and .
             if(strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")){
+                printf("dir name: %s\n", dir->d_name);
                 strncpy(filenames[file_count], dir->d_name, BUFFSIZ - 1);
                 filenames[file_count][BUFFSIZ - 1] = '\0';
-                file_count++;                
+
+                file_count++;
+                if(file_count >= max_files) return 1;
             }
             bpos += dir->d_reclen;
         }
@@ -164,8 +168,15 @@ int write_all(int fd, const void *buff, size_t size) {
 
 int exec_command(const command cmd, int newsock){
     if(cmd.op == LIST){
+        char clean_path[BUFFSIZ];
+        strncpy(clean_path, cmd.path, BUFFSIZ - 1);
+        // '\0' if there is newline in the path to ignore it
+        clean_path[BUFFSIZ - 1] = '\0';
+        clean_path[strcspn(clean_path, "\n")] = '\0';
+        
         char src_files[100][BUFFSIZ];
-        int src_files_count = get_filenames(cmd.path, src_files, BUFFSIZ * 4);\
+        int src_files_count = get_filenames(clean_path, src_files, 100);
+
         if(src_files_count == -1) return -1;
 
         for(int i = 0; i < src_files_count; i++){
@@ -182,7 +193,9 @@ int exec_command(const command cmd, int newsock){
         int fd_file_read = 0;
         if((fd_file_read = open(cmd.path, O_RDONLY)) == -1){
             char error_msg[] = "-1\n";
+
             write_all(newsock, error_msg, strlen(error_msg));
+            close(fd_file_read);
             
             return -1;
         }
@@ -203,7 +216,9 @@ int exec_command(const command cmd, int newsock){
         while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){
             if(write_all(newsock, buffer, read_bytes) == -1){
                 perror("Write full");
-                break;
+                
+                close(fd_file_read);
+                return -1;;
             }
         }
 

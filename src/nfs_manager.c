@@ -47,9 +47,9 @@ int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_con
 void *worker_thread(void *arg){
     config_pairs* conf_pairs = (config_pairs*) arg;
     struct sockaddr_in servadd; /* The address of server */
-    struct hostent *hp; /* to resolve server ip */
-    int sock, n_read;
-
+    struct hostent *hp;         /* to resolve server ip */
+    
+    int sock;
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         perror( "socket" );
     
@@ -64,23 +64,73 @@ void *worker_thread(void *arg){
 
     if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
         perror("connect");
+
+        
+    char list_cmd_buff[BUFFSIZ];
+    int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", conf_pairs->source_dir_path);
+    list_cmd_buff[list_len] = '\0';
+
+    if(write_all(sock, list_cmd_buff, list_len) == -1){
+        perror("list write");
+        return NULL;
+    }
+
+    size_t total_read_list      = 0;
+    size_t list_buff_capacity   = 0;
     
-    ////////////// PULL COMMAND //////////////
+    char *list_reply_buff = NULL;
+    do{
+        if(list_buff_capacity - total_read_list < BUFFSIZ){
+            list_buff_capacity += BUFFSIZ;
+            list_reply_buff = realloc(list_reply_buff, list_buff_capacity);
+
+            if(list_reply_buff == NULL){
+                perror("Realloc");
+                exit(1);
+            }
+        }
+
+        ssize_t n_read = read(sock, &list_reply_buff[total_read_list], BUFFSIZ);
+        if(n_read < 0){
+            perror("read");
+            break;
+        }
+
+        total_read_list += n_read;
+        list_reply_buff[total_read_list] = '\0';
+    } while(strstr(list_reply_buff, ".\nACK\n") == NULL); // Keep reading until we receive '.\nACK\n'
+        
+    // Locate ack and remove it
+    char *ack_start = strstr(list_reply_buff, "\nACK\n");
+    if(ack_start) *ack_start = '\0'; 
+
+    // printf("Rec file list:\n%s\nSize: %ld\n", list_reply_buff, total_read_list);
+    char *curr_file = strtok(list_reply_buff, "\n");
+    while(curr_file && strcmp(curr_file, ".") != 0) {
+        printf("file: %s\n", curr_file);
+        curr_file = strtok(NULL, "\n");
+    }
+
+    free(list_reply_buff);
+
+
 
     // Request pull of given text TODO: make it dynamic with list
-    char pull_cmd_buff[BUFFSIZ * 4];
+    char pull_cmd_buff[BUFFSIZ];
     memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
 
-    snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
-    if(write_all(sock, pull_cmd_buff, strlen(pull_cmd_buff)) == -1)
-        perror("write");
+    int len = snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), "PULL %s/test.txt", conf_pairs->source_dir_path);
+    if(write_all(sock, pull_cmd_buff, len) == -1){
+        perror("pull write");
+        return NULL;
+    }
 
-    
-    char num_buff[32];
-    char space_ch;
+        
     int ind = 0;
+    char space_ch;
+    char num_buff[32];
 
-    // read the size of the file we are about to send
+    // Read the size of the file we are about to send
     while(read(sock, &space_ch, 1) == 1){
         if(space_ch == ' ') break;
         
@@ -88,7 +138,7 @@ void *worker_thread(void *arg){
     }
     num_buff[ind] = '\0';
     long file_size = strtol(num_buff, NULL, 10); 
-
+    printf("file size : %ld\n", file_size);
 
     // Establish connection with the target host to send the file //
     int push_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -109,8 +159,7 @@ void *worker_thread(void *arg){
         perror("connect");
     
     
-    
-    ssize_t total_read              = 0;
+    int total_read = 0;
     unsigned short first_push_write = 0;
 
     char pull_buffer[BUFFSIZ];
@@ -125,27 +174,27 @@ void *worker_thread(void *arg){
         request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
 
         if(!request_bytes){
-            int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
-                conf_pairs->target_dir_path,
-                request_bytes,
-                pull_buffer);
+            // int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+            //     conf_pairs->target_dir_path,
+            //     request_bytes,
+            //     pull_buffer);
 
-            if(write_all(push_sock, push_buffer, len) == -1) {
-                perror("write push");
-            }
-            printf("\nSENT\n");
+            // if(write_all(push_sock, push_buffer, len) == -1) {
+            //     perror("push write");
+            // }
             break;
         }
         
-        n_read = read(sock, pull_buffer, request_bytes);
+        int n_read = read(sock, pull_buffer, request_bytes);
         if(n_read < request_bytes){
             perror("\nread");
             break;
         }
         pull_buffer[n_read] = '\0';
         
-        /* Send -1 batch size to create the file if its the first write
-         * Otherwise send the bytes read from other host -> request_bytes
+        /*
+         * Send -1 batch size to create the file if it's the first write,
+         * otherwise send the bytes read from other host -> request_bytes
          */
         int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
         int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %d %s", 
@@ -171,7 +220,6 @@ void *worker_thread(void *arg){
         memset(push_buffer, 0, sizeof(push_buffer)); 
     }
 
-       
     close(sock);
     close(push_sock);
 
@@ -196,11 +244,11 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    printf("logfile: %s\n", logfile);
-    printf("config_file: %s\n", config_file);
-    printf("worker_limit: %d\n", worker_limit);
-    printf("port: %d\n", port);
-    printf("buffer_size: %d\n", buffer_size);
+    // printf("logfile: %s\n", logfile);
+    // printf("config_file: %s\n", config_file);
+    // printf("worker_limit: %d\n", worker_limit);
+    // printf("port: %d\n", port);
+    // printf("buffer_size: %d\n", buffer_size);
 
     // Config file parsing
     int fd_config;
