@@ -306,7 +306,7 @@ int main(int argc, char* argv[]){
         ssize_t n;
         int read_buff_len = 0;
 
-        char read_buffer[BUFFSIZ * 2]; // issue here
+        char read_buffer[BUFFSIZ + 1];
         memset(read_buffer, 0, sizeof(read_buffer));
         while((n = read(newsock, read_buffer, sizeof(read_buffer))) > 0){
             printf("read: %ld\n", n);
@@ -323,21 +323,9 @@ int main(int argc, char* argv[]){
                 break;
             }
 
-                exec_command(current_cmd_struct, newsock);
-                write(newsock, "ACK\n", 4);
+            exec_command(current_cmd_struct, newsock);
+            write(newsock, "ACK\n", 4);
 
-                // total_command_token_size += cmd_token_size;
-            // }
-
-            
-            // if(total_command_token_size < read_buff_len){
-            //     memmove(read_buffer, &read_buffer[total_command_token_size], read_buff_len - total_command_token_size);
-            //     read_buff_len -= total_command_token_size;
-            // } else {
-            //     read_buff_len = 0;
-            // }
-
-            // clear the rest
             memset(read_buffer, 0, sizeof(read_buffer));
         }
 

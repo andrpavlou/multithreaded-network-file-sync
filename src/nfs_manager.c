@@ -122,32 +122,39 @@ void *worker_thread(void *arg){
     
     ssize_t total_read = 0;
     char pull_buffer[BUFFSIZ];
-    char push_buffer[BUFFSIZ * 2];
+    char push_buffer[BUFFSIZ];
     
     printf("Size: %ld \n", file_size);
     // Read response of pull command 
     while(total_read < file_size){
-        ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ;
+        ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 1;
+        ssize_t const_extra_bytes = strlen("PUSH ") + strlen("/test.txt ") + BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1;
         
+        request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
 
+
+        
+        if(request_bytes == 0) break;
+        
         n_read = read(sock, pull_buffer, request_bytes);
         if(n_read < request_bytes){
             perror("\nread");
+            break;
         }
         pull_buffer[n_read] = '\0';
         // printf("----\nREQ: %d\nREAD: %d\n%s\n----------\n", request_bytes, n_read, pull_buffer);
 
 
-        snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+        int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
             conf_pairs->target_dir_path,
             request_bytes,
             pull_buffer);
-        printf("SIZE OF BUFFER %ld\n", strlen(push_buffer));
+
+        printf("SIZE OF BUFFER %d REQUEST BYTES %ld CONST EXTRA %ld \n", len, request_bytes, const_extra_bytes);
 
         // printf("--------\nTGT: %s\nWRITE: %d\n%s\n----------\n", conf_pairs->target_dir_path, n_read, push_buffer);
-        printf("Sending %ld\n", request_bytes);
 
-        if(write_all(push_sock, push_buffer, strlen(push_buffer)) == -1) {
+        if(write_all(push_sock, push_buffer, len) == -1) {
             perror("write push");
         }
         
@@ -163,88 +170,9 @@ void *worker_thread(void *arg){
         memset(push_buffer, 0, sizeof(push_buffer)); 
     }
 
-    // char pull_response_buff[BUFFSIZ];
-    // if((n_read = read(sock, pull_response_buff, sizeof(pull_response_buff))) <= 0){
-    //     perror("pull read");
-    //     close(sock);
-    //     return NULL;
-    // }
-    // pull_response_buff[n_read] = '\0';
-    // close(sock);
-    
-    // // Parse response of pull command 
-    // ssize_t rec_file_len    = 0;
-    // char *file_content      = NULL;
-    
-    // int status = parse_pull_read(pull_response_buff, &rec_file_len, &file_content);
-    // if(status){
-    //     perror("parse pull");
-    //     close(1);
-    // }
-
-    // printf("SIZE: %ld\n", rec_file_len);
-    // printf("CONTENT:[%s]\n", file_content);
-    
-    ////////////// PUSH COMMAND //////////////
-
-    // Open new connection for target to push data
-    // if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    //     perror( "socket" );
-    
-    // if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
-    //     perror("gethostbyname"); 
-    //     exit(1);
-    // }
-
-    // memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    // servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
-    // servadd.sin_family = AF_INET ; /* set socket type */
-
-    // // First connection to create the file, must weather we need to do this with -1 on first run and then send it.
-    // if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
-    //     perror("connect");
-    
-    // // Creates file on remote host
-    // char push_cmd_buff[BUFFSIZ * 4];
-    // snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %d %s", 
-    //     conf_pairs->target_dir_path,
-    //     FILE_NF_LEN, 
-    //     "");
-
-    // if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
-    //     perror("fwrite");
-
-        
-    // if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-    //     perror( "socket" );
-    
-    // if((hp = gethostbyname(conf_pairs->target_ip)) == NULL) {
-    //     perror("gethostbyname"); 
-    //     exit(1);
-    // }
-
-    // memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    // servadd.sin_port = htons(conf_pairs->target_port); /* set port number */
-    // servadd.sin_family = AF_INET ; /* set socket type */
-
-    // if(connect(sock, (struct sockaddr*) &servadd, sizeof(servadd)) !=0)
-    //     perror("connect");
-    
-    
-    // // Send the actual text...
-    // memset(push_cmd_buff, 0, sizeof(push_cmd_buff));
-    // snprintf(push_cmd_buff, sizeof(push_cmd_buff), "PUSH %s/test.txt %ld %s", 
-    //     conf_pairs->target_dir_path,
-    //     rec_file_len, 
-    //     file_content);        
-
-
-
-    // if(write_all(sock, push_cmd_buff, strlen(push_cmd_buff)) == -1)
-    //     perror("fwrite");
-
-    
-    // close(sock);
+       
+    close(sock);
+    close(push_sock);
 
     return NULL;
 }

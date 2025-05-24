@@ -5,6 +5,7 @@
 
 
 #define BUFFSIZ 256
+#define BUFFSIZ_CHARS 3
 #define EVENT_BUFSIZ (1024 * (sizeof(struct inotify_event) + NAME_MAX + 1))
 
 
