@@ -334,9 +334,6 @@ int main(int argc, char* argv[]){
                 printf("Data: %s\n", current_cmd_struct.data);
             }
 
-
-
-
             if(exec_command(current_cmd_struct, newsock)){
                 perror("exec command");
                 break;

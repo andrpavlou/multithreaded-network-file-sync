@@ -195,3 +195,4 @@ int check_args_manager(int argc, char *argv[], char** logfile, char** config_fil
 
     return 0;
 }
+
