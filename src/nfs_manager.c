@@ -13,14 +13,26 @@
     |
   read()
 */
-int write_all(int fd, const void *buff, size_t size) {
-    int sent, n;
+ssize_t write_all(int fd, const void *buff, size_t size) {
+    ssize_t sent, n;
     for(sent = 0; sent < size; sent+=n) {
         if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
     }
 
     return sent;
 }
+
+ssize_t read_all(int fd, void *buf, size_t size){
+    ssize_t total_read_b = 0;
+    ssize_t n = 0;
+    for( ; total_read_b < size; total_read_b += n){
+        n = read(fd, (char*) buf + total_read_b, size - total_read_b);
+        
+        if(n <= 0) return n;
+    }
+    return total_read_b;
+}
+
 
 int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
     char temp_buff[BUFSIZ];
@@ -94,6 +106,7 @@ void *worker_thread(void *arg){
             }
         }
 
+        
         ssize_t n_read = read(sock, &list_reply_buff[total_read_list], BUFFSIZ);
         if(n_read < 0){
             perror("read");
@@ -121,39 +134,7 @@ void *worker_thread(void *arg){
         file_buff[total_src_files] = curr_file;
     }
 
-    for(int i = 0; i < total_src_files; i++){
-        printf("File: %s ", file_buff[i]);
-    }
-
-    // int curr_file_counter = 0;
-    // while(curr_file_counter < total_src_files){
-    // Request pull of given text
-    char pull_cmd_buff[BUFFSIZ];
-    memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
-
-    int len = snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), 
-        "PULL %s/test.txt", 
-        conf_pairs->source_dir_path);
-
-    if(write_all(sock, pull_cmd_buff, len) == -1){
-        perror("pull write");
-        return NULL;
-    }
-        
-    int ind = 0;
-    char space_ch;
-    char num_buff[32];
-
-    // Read the size of the file we are about to send
-    while(read(sock, &space_ch, 1) == 1){
-        if(space_ch == ' ') break;
-        
-        num_buff[ind++] = space_ch;
-    }
-    num_buff[ind] = '\0';
-    long file_size = strtol(num_buff, NULL, 10); 
-    printf("file size : %ld\n", file_size);
-
+    printf("total: %d\n", total_src_files);
     // Establish connection with the target host to send the file //
     int push_sock = socket(AF_INET, SOCK_STREAM, 0);
     if(push_sock == -1) perror("socket");
@@ -169,78 +150,118 @@ void *worker_thread(void *arg){
     push_addr.sin_port = htons(conf_pairs->target_port);
     push_addr.sin_family = AF_INET;
 
-    if(connect(push_sock, (struct sockaddr*)&push_addr, sizeof(push_addr)) != 0)
-        perror("connect");
-    
-    
-    int total_read = 0;
+    if(connect(push_sock, (struct sockaddr*)&push_addr, sizeof(push_addr)) != 0) perror("connect");
+
+
     unsigned short first_push_write = 0;
+    for(int i = 0; i < total_src_files; i++){
+        // Request pull of given text
+        char pull_cmd_buff[BUFFSIZ];
+        memset(pull_cmd_buff, 0, strlen(pull_cmd_buff));
 
-    char pull_buffer[BUFFSIZ];
-    char push_buffer[BUFFSIZ];
+        int len = snprintf(pull_cmd_buff, sizeof(pull_cmd_buff), 
+            "PULL %s/%s", 
+            conf_pairs->source_dir_path,
+            file_buff[i]);
 
-    // Read response of pull command 
-    while(total_read < file_size){
-        ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 2;
+        if(write_all(sock, pull_cmd_buff, len) == -1){
+            perror("pull write");
+            return NULL;
+        }
+            
+        int ind = 0;
+        char space_ch;
+        char num_buff[32];
 
-        // TODO: Change after requesting "LIST" cmd with dynamic files.
-        ssize_t const_extra_bytes = strlen("PUSH") + strlen("/test.txt") + 
-        BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1 + 2; // 2 spaces + 1 "/"
+        // Read the size of the file we are about to send
+        while(read(sock, &space_ch, 1) == 1){
+            if(space_ch == ' ') break;
+            
+            num_buff[ind++] = space_ch;
+        }
+        num_buff[ind] = '\0';
+        long file_size = strtol(num_buff, NULL, 10); 
+        printf("file size: %ld pull cmd: %s\n", file_size, num_buff);
+        
+        
+        int total_read = 0;
 
-        request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
+        char pull_buffer[BUFFSIZ];
+        char push_buffer[BUFFSIZ];
 
-        if(!request_bytes){
-            int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %ld %s", 
+        // Read response of pull command 
+        while(total_read < file_size){
+            ssize_t request_bytes = (file_size - total_read) < BUFFSIZ ? (file_size - total_read) : BUFFSIZ - 2;
+
+            ssize_t const_extra_bytes = strlen("PUSH") + strlen(file_buff[i]) + 1 + 
+            BUFFSIZ_CHARS  + strlen(conf_pairs->target_dir_path) + 1 + 2; // 2 spaces + 1 "/"
+
+            request_bytes -= request_bytes + const_extra_bytes > BUFFSIZ ? const_extra_bytes : 0;
+            // printf("File: %s\nRequested: %ld\n-------\n", file_buff[i], request_bytes);
+
+
+            if(!request_bytes){
+                int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/%s %ld %s", 
+                    conf_pairs->target_dir_path,
+                    file_buff[i],
+                    request_bytes,
+                    pull_buffer);
+
+                if(write_all(push_sock, push_buffer, len) == -1) {
+                    perror("push write");
+                }
+                break;
+            }
+            
+            ssize_t n_read;
+            if((n_read = read_all(sock, pull_buffer, request_bytes)) <= 0){
+                perror("\nread pull_buffer");
+                break;
+            }
+            pull_buffer[n_read] = '\0';
+            
+            /*
+            * Send -1 batch size to create the file if it's the first write,
+            * otherwise send the bytes read from other host -> request_bytes
+            */
+            int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
+            int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/%s %d %s", 
                 conf_pairs->target_dir_path,
-                request_bytes,
+                file_buff[i],
+                write_batch_bytes,
                 pull_buffer);
 
+
             if(write_all(push_sock, push_buffer, len) == -1) {
-                perror("push write");
+                perror("write push");
             }
-            break;
-        }
-        
-        int n_read = read(sock, pull_buffer, request_bytes);
-        if(n_read < request_bytes){
-            perror("\nread");
-            break;
-        }
-        pull_buffer[n_read] = '\0';
-        
-        /*
-        * Send -1 batch size to create the file if it's the first write,
-        * otherwise send the bytes read from other host -> request_bytes
-        */
-        int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
-        int len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/test.txt %d %s", 
-            conf_pairs->target_dir_path,
-            write_batch_bytes,
-            pull_buffer);
+            first_push_write = 1;
 
+            char ack[8] = {0};
+            int ack_read = read(push_sock, ack, sizeof(ack) - 1);
+            if(ack_read <= 0 || strncmp(ack, "ACK", 3)){
+                fprintf(stderr, "No ACK REC: [%s]\n", ack);
+                break;
+            }
 
-        if(write_all(push_sock, push_buffer, len) == -1) {
-            perror("write push");
+            total_read += n_read;
+            memset(pull_buffer, 0, sizeof(pull_buffer)); 
+            memset(push_buffer, 0, sizeof(push_buffer)); 
         }
-        first_push_write = 1;
 
         char ack[8] = {0};
-        int ack_read = read(push_sock, ack, sizeof(ack) - 1);
+        int ack_read = read(sock, ack, sizeof(ack) - 1);
         if(ack_read <= 0 || strncmp(ack, "ACK", 3)){
             fprintf(stderr, "No ACK REC: [%s]\n", ack);
             break;
         }
-
-        total_read += n_read;
-        memset(pull_buffer, 0, sizeof(pull_buffer)); 
-        memset(push_buffer, 0, sizeof(push_buffer)); 
+        first_push_write = 0;
     }
+
     close(push_sock);
-
-
-    free(list_reply_buff);
-
     close(sock);
+    free(list_reply_buff);
+    
     return NULL;
 }
 
