@@ -5,7 +5,7 @@
 #define BUFFSIZ 256
 #define MAX_FILES 100
 
-
+#include "utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/wait.h> /* sockets */

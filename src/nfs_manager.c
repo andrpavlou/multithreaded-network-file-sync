@@ -3,7 +3,6 @@
 #include "sync_task.h"
 #include "sync_info.h"
 
-
 /*
   socket()
     |
@@ -13,150 +12,8 @@
     |
   read()
 */
-ssize_t write_all(int fd, const void *buff, size_t size) {
-    ssize_t sent, n;
-    for(sent = 0; sent < size; sent+=n) {
-        if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
-    }
 
-    return sent;
-}
-
-ssize_t read_all(int fd, void *buf, size_t size){
-    ssize_t total_read_b = 0;
-    ssize_t n = 0;
-    for( ; total_read_b < size; total_read_b += n){
-        n = read(fd, (char*) buf + total_read_b, size - total_read_b);
-        
-        if(n <= 0) return n;
-    }
-    return total_read_b;
-}
-
-int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
-    char temp_buff[BUFSIZ];
-    strncpy(temp_buff, rec_buff, sizeof(temp_buff) - 1);
-    temp_buff[sizeof(temp_buff) - 1] = '\0';
-
-    char *token = strtok(temp_buff, " ");
-    if(!token) return 1;
-
-    *rec_file_len = atoi(token);
-    if(*rec_file_len == -1){
-        perror("File not found from client");
-        return 1;
-    }
-
-    char *first_space = strchr(rec_buff, ' ');
-    if(first_space == NULL) return 1;
-
-    *file_content = first_space + 1;
-
-    return 0;
-}
-
-int establish_connection(int *sock, const char *ip, const int port){
-    struct sockaddr_in servadd; /* The address of server */
-    struct hostent *hp;         /* to resolve server ip */
-
-    if((*sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-        perror("socket");
-        return 1;
-    }
-    
-    if((hp = gethostbyname(ip)) == NULL){
-        perror("gethostbyname"); 
-        return 1;
-    }
-
-    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    servadd.sin_port = htons(port); /* set port number */
-    servadd.sin_family = AF_INET;   /* set socket type */
-
-    if(connect(*sock, (struct sockaddr*) &servadd, sizeof(servadd)) != 0){
-        perror("connect");
-        return 1;
-    }
-    return 0;
-}
-
-int read_list_response(int sock, char **list_reply_buff){
-    size_t total_read_list      = 0;
-    size_t list_buff_capacity   = 0;
-
-    do{
-        // Allocate more memory for buffer if there is not enough space
-        if(list_buff_capacity - total_read_list < BUFFSIZ){
-            list_buff_capacity += BUFFSIZ;
-            *list_reply_buff = realloc(*list_reply_buff, list_buff_capacity);
-
-            if(*list_reply_buff == NULL){
-                perror("Realloc");
-                return 1;
-            }
-            (*list_reply_buff)[list_buff_capacity - 1] = '\0';
-        }
-        ssize_t n_read = read(sock, *list_reply_buff + total_read_list, BUFFSIZ);
-        if(n_read <= 0){
-            perror("read");
-            return 1;
-        }
-
-        total_read_list += n_read;
-        (*list_reply_buff)[total_read_list] = '\0';
-    } while(strstr((*list_reply_buff), ".\nACK\n") == NULL); // Keep reading until we receive '.\nACK\n'
-
-    return 0;
-}
-
-int get_files_from_list_response(char *list_reply_buff, char *file_buff[MAX_FILES]){
-    int total_src_files = 0;
-    char *curr_file = strtok(list_reply_buff, "\n");
-    
-    file_buff[total_src_files] = curr_file;
-    while(curr_file && strcmp(curr_file, ".") != 0 && total_src_files < MAX_FILES){
-        total_src_files++;
-        
-        curr_file = strtok(NULL, "\n");
-        file_buff[total_src_files] = curr_file;
-    }
-
-    return total_src_files;
-}
-
-long get_file_size_of_host(int sock){
-    int ind = 0;
-    char space_ch;
-    char num_buff[32];
-
-    // Read the size of the file we are about to send
-    while(read(sock, &space_ch, 1) == 1){
-        if(space_ch == ' ') break;
-        
-        num_buff[ind++] = space_ch;
-    }
-    num_buff[ind] = '\0';
-
-    char *end;
-    long file_size = strtol(num_buff, &end, 10);
-    if(end == num_buff || *end != '\0') return -1;
-
-    return file_size;
-}   
-
-
-int receive_ack(int sock){
-    char ack[8] = {0};
-    
-    int ack_read = read(sock, ack, sizeof(ack) - 1);
-    if(ack_read <= 0 || strncmp(ack, "ACK", 3)){
-        fprintf(stderr, "No ACK REC: [%s]\n", ack);
-        return 1;
-    }
-    
-    return 0;
-}
-
+volatile sig_atomic_t manager_active = 1;
 
 void *worker_thread(void *arg){
     config_pairs* conf_pairs = (config_pairs*) arg;
@@ -289,8 +146,9 @@ void *worker_thread(void *arg){
     return NULL;
 }
 
-
-
+void handle_sigint(int sig){
+    manager_active = 0;
+}
 
 
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2345 -b 512
@@ -307,11 +165,11 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    // printf("logfile: %s\n", logfile);
-    // printf("config_file: %s\n", config_file);
-    // printf("worker_limit: %d\n", worker_limit);
-    // printf("port: %d\n", port);
-    // printf("buffer_size: %d\n", buffer_size);
+    struct sigaction sa;
+    sa.sa_handler = handle_sigint;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; 
+    sigaction(SIGINT, &sa, NULL);
 
     // Config file parsing
     int fd_config;
@@ -327,9 +185,67 @@ int main(int argc, char *argv[]){
     config_pairs *conf_pairs = malloc(sizeof(config_pairs) * total_config_pairs);
     create_cf_pairs(fd_config, conf_pairs);
     
-    pthread_t worker_th;
-    pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
-    pthread_join(worker_th, NULL);
+    struct sockaddr_in server, client;
+    struct sockaddr *serverptr = (struct sockaddr *) &server;
+    struct sockaddr *clientptr = (struct sockaddr *) &client;
+
+    int socket_manager = 0;
+    if((socket_manager = socket(AF_INET , SOCK_STREAM , 0)) < 0)
+        perror("socket");
+    
+    int optval = 1;
+    setsockopt(socket_manager, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
+    server.sin_family       = AF_INET; /* Internet domain */
+    server.sin_addr.s_addr  = htonl(INADDR_ANY);
+    server.sin_port         = htons(port); /* The given port */
+    
+    /* Bind socket to address */
+    if(bind(socket_manager, serverptr, sizeof(server)) < 0){
+        perror("bind");
+        exit(1);
+    }
+
+    if(listen(socket_manager, 5) < 0) perror ("listen") ;
+    
+    socklen_t clientlen;
+    printf("Listening for connections to port % d \n", port);
+    
+    int socket_client = 0;
+    clientlen = sizeof(struct sockaddr_in);
+    if((socket_client = accept(socket_manager, clientptr, &clientlen)) < 0){
+        perror("accept ");
+        return 1;
+    }
+
+    printf("Accepted connection \n") ;
+    while(manager_active){
+
+        char read_buffer[BUFFSIZ];
+        memset(read_buffer, 0, sizeof(read_buffer));
+        
+        ssize_t n_read;
+        
+        if((n_read = read(socket_client, read_buffer, BUFFSIZ - 1)) <= 0){
+            perror("Read from console");
+            return 1;
+        }
+        read_buffer[n_read] = '\0';
+
+        printf("Read %s\n", read_buffer);
+    }
+
+    close(socket_client);
+    close(socket_manager);
+
+    printf("\n exiting \n");
+
+
+    
+    ////// Thread workers for tasks
+    // pthread_t worker_th;
+    // pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
+    // pthread_join(worker_th, NULL);
 
 
     return 0;

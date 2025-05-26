@@ -2,21 +2,21 @@
 
 
 /*
-  socket()
-    |
-  bind()
-    |
-  listen()
-    |
-  accept()
-    |
+     socket()
+        |
+     bind()
+        |
+     listen()
+        |
+     accept()
+        |
 (wait for connection)
-    |
-  read()
-    |
-(processing)
-    |
-  write()
+        |
+      read()
+        |
+    (processing)
+        |
+      write()
 */
 
 
@@ -155,17 +155,6 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
 
 
 
-int write_all(int fd, const void *buff, size_t size) {
-    int sent, n;
-    for(sent = 0; sent < size; sent+=n) {
-        if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
-    }
-
-    return sent;
-}
-
-
-
 int exec_command(const command cmd, int newsock){
     if(cmd.op == LIST){
         char clean_path[BUFFSIZ];
@@ -255,7 +244,7 @@ int exec_command(const command cmd, int newsock){
     return 1;
 }
 
-void handle_sigint(int sig) {
+void handle_sigint(int sig){
     client_active = 0;
 }
 
