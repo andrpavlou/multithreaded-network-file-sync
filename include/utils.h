@@ -24,7 +24,7 @@ typedef struct {
     char target_ip[BUFFSIZ / 4];
     int target_port;
 
-} config_pairs;
+} config_pairs; // TODO: make sure how the path will be given
 
 
 

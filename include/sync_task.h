@@ -11,7 +11,7 @@
 
 typedef struct {
     char filename[BUFFSIZ];             
-    operation op;
+    // client_operation op;
     sync_info_mem_store *node;
     struct sync_task *next;
 } sync_task;

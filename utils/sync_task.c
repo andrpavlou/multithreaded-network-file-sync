@@ -47,7 +47,6 @@ sync_task* dequeue_task(sync_task_ts *queue){
 
 
 
-///////////////// HW1 Might no need for this one /////////////////
 ///////
 // insert task at the end of the queue.
 // void enqueue_sync_task(sync_task **head, sync_task **tail, sync_task *new_task) {

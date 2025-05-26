@@ -45,7 +45,7 @@ int arg_check(int argc, const char** argv, int *port){
 }
 
 
-const char* cmd_to_str(operation cmd){
+const char* cmd_to_str(client_operation cmd){
     if(cmd == LIST) return "LIST";
     if(cmd == PULL) return "PULL";
     if(cmd == PUSH) return "PUSH";
@@ -54,7 +54,7 @@ const char* cmd_to_str(operation cmd){
 }
 
 
-int parse_command(const char* buffer, command *full_command){
+int parse_manager_command(const char* buffer, client_command *full_command){
     memset(full_command->data, 0, BUFFSIZ);
 
     if(!strncmp(buffer, "LIST", 4)){
@@ -98,10 +98,8 @@ int parse_command(const char* buffer, command *full_command){
             return 1;
         } 
 
-
         token = strtok(NULL, "");        
         if(!token) return 1;
-
 
         size_t memcpy_s = full_command->chunk_size == -1 ? strlen(token) : full_command->chunk_size;
         memcpy(full_command->data, token, memcpy_s);
@@ -155,7 +153,7 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
 
 
 
-int exec_command(const command cmd, int newsock){
+int exec_command(const client_command cmd, int newsock){
     if(cmd.op == LIST){
         char clean_path[BUFFSIZ];
         strncpy(clean_path, cmd.path, BUFFSIZ - 1);
@@ -307,10 +305,9 @@ int main(int argc, char* argv[]){
         memset(read_buffer, 0, sizeof(read_buffer));
         while((n_read = read(newsock, read_buffer, sizeof(read_buffer))) > 0){
             read_buffer[n_read] = '\0';
-
             
-            command current_cmd_struct;
-            if(parse_command(read_buffer, &current_cmd_struct)){
+            client_command current_cmd_struct;
+            if(parse_manager_command(read_buffer, &current_cmd_struct)){
                 fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
                 break;
             }

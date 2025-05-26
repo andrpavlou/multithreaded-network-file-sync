@@ -40,13 +40,28 @@ typedef enum{
     PULL,
     PUSH, 
     INVALID
-} operation;
+} client_operation;
+
+typedef enum{
+    ADD,
+    CANCEL,
+    SHUTDOWN,
+} manager_operation;
+
 
 typedef struct {
-    operation op;
-    char path[BUFSIZ];      // list + pull: dir for push
-    char data[BUFSIZ];      // push
+    client_operation op;
+    char path[BUFFSIZ];      // list + pull: dir for push
+    char data[BUFFSIZ];      // push
     int chunk_size;         // push
-} command;
+} client_command;
+
+
+typedef struct {
+    manager_operation op;
+    char source[BUFFSIZ];      // list + pull: dir for push
+    char target[BUFFSIZ];      // push
+} manager_command;
+
 
 #endif

@@ -269,7 +269,7 @@ ssize_t read_all(int fd, void *buf, size_t size){
 
 
 int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
-    char temp_buff[BUFSIZ];
+    char temp_buff[BUFFSIZ];
     strncpy(temp_buff, rec_buff, sizeof(temp_buff) - 1);
     temp_buff[sizeof(temp_buff) - 1] = '\0';
 

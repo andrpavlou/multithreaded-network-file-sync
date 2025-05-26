@@ -15,6 +15,8 @@
 
 volatile sig_atomic_t manager_active = 1;
 
+
+
 void *worker_thread(void *arg){
     config_pairs* conf_pairs = (config_pairs*) arg;
     int sock_source_read;
@@ -151,6 +153,78 @@ void handle_sigint(int sig){
 }
 
 
+int parse_console_command(const char* buffer, manager_command *full_command){
+
+    if(!strncasecmp(buffer, "CANCEL", 6)){
+        full_command->op = CANCEL;
+
+        buffer += 6; // Move past cancel "cancel"
+        while(isspace(*buffer)) buffer++; // Skip spaces between CANCEL and PATH in case more exist
+        
+        char temp[BUFSIZ];
+        strncpy(temp, buffer, BUFSIZ - 1);
+        temp[strcspn(temp, "\n")] = '\0';   // remove newline
+
+
+        char *first_token = strtok(temp, " ");
+        // If the current first_token is null or more text exists after first_token with spaces
+        // we should return error
+        if(first_token == NULL || strtok(NULL, " ") != NULL) return 1;
+
+        strncpy(full_command->source, first_token, BUFFSIZ - 1);
+        full_command->source[BUFFSIZ - 1] = '\0';
+        
+        full_command->target[0] = '\0';
+        return 0;
+    }
+
+
+    if(!strncasecmp(buffer, "ADD", 3)){
+        full_command->op = ADD;
+
+        buffer += 3;                        // Move past cancel "add"
+        while(isspace(*buffer)) buffer++;   // Skip spaces between add and source in case more exist
+        
+        char temp[BUFSIZ];
+        strncpy(temp, buffer, BUFSIZ - 1);
+        temp[strcspn(temp, "\n")] = '\0';   // remove newline
+
+
+        char *first_token = strtok(temp, " ");  // Source path
+        if(first_token == NULL) return 1;
+
+        strncpy(full_command->source, first_token, BUFFSIZ - 1);
+        full_command->source[BUFFSIZ - 1] = '\0';
+
+
+        
+        char *second_token = strtok(NULL, " "); // Target path
+        if(second_token == NULL) return 1;
+
+        
+        strncpy(full_command->target, second_token, BUFFSIZ - 1);
+        full_command->target[BUFFSIZ - 1] = '\0';
+
+        char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
+        if(end != NULL) return 1;
+        
+        return 0;
+    }
+
+    if(!strncasecmp(buffer, "SHUTDOWN", 8)){
+        full_command->op = SHUTDOWN;
+
+        full_command->source[0] = '\0';
+        full_command->target[0] = '\0';
+
+        return 0;
+    }
+
+    return 1;
+}
+
+
+
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2345 -b 512
 int main(int argc, char *argv[]){
     char *logfile       = NULL;
@@ -225,12 +299,22 @@ int main(int argc, char *argv[]){
         memset(read_buffer, 0, sizeof(read_buffer));
         
         ssize_t n_read;
-        
         if((n_read = read(socket_client, read_buffer, BUFFSIZ - 1)) <= 0){
             perror("Read from console");
             return 1;
         }
         read_buffer[n_read] = '\0';
+
+        manager_command cmd;
+        if(parse_console_command(read_buffer, &cmd)){
+            fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
+            break;
+        }
+        
+        printf("Whole command: %s\n", read_buffer);
+        printf("Operation: %d\n", cmd.op);
+        printf("Source: %s\n", cmd.source);
+        printf("Target: %s\n", cmd.target);
 
         printf("Read %s\n", read_buffer);
     }
