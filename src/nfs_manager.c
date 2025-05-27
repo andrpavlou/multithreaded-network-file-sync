@@ -409,7 +409,7 @@ int main(int argc, char *argv[]){
                 enqueue_task(&queue_tasks, new_task);    
             }
 
-            // print_sync_task(new_task);
+            print_sync_task(new_task);
         }
         
 
@@ -462,3 +462,34 @@ int main(int argc, char *argv[]){
 
 
 
+
+void print_sync_task(sync_task *task) {
+    if(!task){
+        printf("NULL task\n");
+        return;
+    }
+    
+    printf("--- Sync Task ---\n");
+    printf("Operation\t: %d\n", task->manager_cmd.op);
+    
+    if(task->manager_cmd.op == ADD){
+        printf("Filename\t: %s\n", task->filename);
+        printf("Source Dir\t: %s\n", task->manager_cmd.source_dir);
+        printf("Source IP\t: %s\n", task->manager_cmd.source_ip);
+        printf("Source Port\t: %d\n", task->manager_cmd.source_port);
+        printf("Target Dir\t: %s\n", task->manager_cmd.target_dir);
+        printf("Target IP\t: %s\n", task->manager_cmd.target_ip);
+        printf("Target Port\t: %d\n", task->manager_cmd.target_port);
+    }
+
+
+    if(task->node){
+        printf("Sync Info:\n");
+        printf("  Source\t: %s\n", task->node->source);
+        printf("  Target\t: %s\n", task->node->target);
+    } else {
+        printf("Sync Info: NULL\n");
+    }
+
+    printf("----------------------------------\n");
+}

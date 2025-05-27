@@ -22,6 +22,8 @@ typedef struct sync_info_mem_store {
     // int watch_fd;
     int report_fd;
     pid_t worker_pid;
+    
+    pthread_mutex_t lock; // needed when modfying last_sync/error_count/active
 
     struct sync_info_mem_store* next;
 } sync_info_mem_store;

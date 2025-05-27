@@ -20,6 +20,8 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
     pthread_mutex_lock(&sync_info_mutex);
 
     sync_info_mem_store* new_node = malloc(sizeof(sync_info_mem_store));
+    pthread_mutex_init(&new_node->lock, NULL);
+    
     if(new_node == NULL){
         pthread_mutex_unlock(&sync_info_mutex);
         return NULL;
