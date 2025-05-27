@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 #define BUFFSIZ 256
 #define BUFFSIZ_CHARS 3
@@ -16,15 +17,12 @@
 typedef struct sync_info_mem_store {
     char source[BUFFSIZ];
     char target[BUFFSIZ];
-    time_t last_sync;
-    int error_count;
-    int active;         
+    atomic_long last_sync;
+    atomic_int error_count;
+    atomic_int active;         
     // int watch_fd;
     int report_fd;
     pid_t worker_pid;
-    
-    pthread_mutex_t lock; // needed when modfying last_sync/error_count/active
-
     struct sync_info_mem_store* next;
 } sync_info_mem_store;
 
