@@ -97,9 +97,12 @@ int parse_path_target(const char *full_path, char *dir_path, char *ip, int *port
     /* /source1@127.0.0.1:2323
     *  |<----->|
     */ 
-    size_t path_len = at - full_path;
-    strncpy(dir_path, full_path, path_len);
-    dir_path[path_len] = '\0';
+
+    if(dir_path != NULL){
+        size_t path_len = at - full_path;
+        strncpy(dir_path, full_path, path_len);
+        dir_path[path_len] = '\0';
+    }
 
     /* /source1@127.0.0.1:2323
     *          |<------->|
@@ -184,12 +187,15 @@ int check_args_manager(int argc, char *argv[], char** logfile, char** config_fil
             *port = atoi(argv[++i]);
         }
 
-        else if(!strncmp(argv[i], "-b", 2) && i + 1 < argc)
+        else if(!strncmp(argv[i], "-b", 2) && i + 1 < argc){
             *buffer_size = atoi(argv[++i]);
+        }
         
         else return 1;
     }
 
+    if(*buffer_size <= 0) return -1;
+    
     *worker_limit = found == 0 ? 5 : *worker_limit;
 
     return 0;

@@ -1,22 +1,30 @@
 #include "sync_info.h"
 
-void print_all_sync_info(sync_info_mem_store* head){
-    if (head == NULL) {
-        printf("No monitored directories.\n");
-        return;
-    }
+// void print_all_sync_info(sync_info_mem_store* head){
+//     if (head == NULL) {
+//         printf("No monitored directories.\n");
+//         return;
+//     }
 
-    sync_info_mem_store* curr = head;
-    while(curr != NULL){
-        printf("Source: %s\t-> Target:%s\tWFD%d\n", curr->source, curr->target, curr->watch_fd);
-        curr = curr->next;
-    }
-}
+//     sync_info_mem_store* curr = head;
+//     while(curr != NULL){
+//         printf("Source: %s\t-> Target:%s\tWFD%d\n", curr->source, curr->target, curr->watch_fd);
+//         curr = curr->next;
+//     }
+// }
+
+pthread_mutex_t sync_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 int add_sync_info(sync_info_mem_store** head, const char* source, const char* target){
+    pthread_mutex_lock(&sync_info_mutex);
+
     sync_info_mem_store* new_node = malloc(sizeof(sync_info_mem_store));
-    if(new_node == NULL) return 1;
+    if(new_node == NULL){
+        pthread_mutex_unlock(&sync_info_mutex);
+        return 1;
+    } 
+
 
     strncpy(new_node->source, source, BUFFSIZ);
     new_node->source[BUFFSIZ - 1] = '\0';
@@ -31,10 +39,11 @@ int add_sync_info(sync_info_mem_store** head, const char* source, const char* ta
     new_node->last_sync     = 0;
     new_node->worker_pid    = -1;
     new_node->last_sync     = 0;
-    new_node->watch_fd      = -1;
+    // new_node->watch_fd      = -1;
     new_node->next          = NULL;
 
     if(*head == NULL){
+        pthread_mutex_unlock(&sync_info_mutex);
         (*head) = new_node;
         return 0;
     }
@@ -45,46 +54,45 @@ int add_sync_info(sync_info_mem_store** head, const char* source, const char* ta
     }
     last->next = new_node;
 
+    pthread_mutex_unlock(&sync_info_mutex);
     return 0;
 }
 
 
 sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source){
-    if(head == NULL) return NULL;
+    pthread_mutex_lock(&sync_info_mutex);
+
+    if(head == NULL){
+        pthread_mutex_unlock(&sync_info_mutex);
+        return NULL;
+    }
     sync_info_mem_store *found = head;
     
     while(found != NULL && strcmp(found->source, source)){
         found = found->next;
     }
 
+    pthread_mutex_unlock(&sync_info_mutex);
     return found;
 }
 
 
 
-sync_info_mem_store* find_by_watch_fd(sync_info_mem_store* head, int wd) {
-    if(head == NULL) return NULL;
-    sync_info_mem_store *found = head;
+// sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid){
+//     if(head == NULL) return NULL;
+//     sync_info_mem_store *found = head;
 
-    while(found != NULL && found->watch_fd != wd){
-        found = found->next;
-    }
-    return found;
-}
+//     while(found != NULL && found->worker_pid != pid){
+//         found = found->next;
+//     }
 
-sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid){
-    if(head == NULL) return NULL;
-    sync_info_mem_store *found = head;
-
-    while(found != NULL && found->worker_pid != pid){
-        found = found->next;
-    }
-
-    return found;
-}
+//     return found;
+// }
 
 
 int remove_sync_info(sync_info_mem_store** head, const char* source){
+    pthread_mutex_lock(&sync_info_mutex);
+
     sync_info_mem_store* prev = NULL;
     sync_info_mem_store* curr = *head;
 
@@ -93,7 +101,10 @@ int remove_sync_info(sync_info_mem_store** head, const char* source){
         curr = curr->next;
     }
 
-    if(curr == NULL) return 1;
+    if(curr == NULL){
+        pthread_mutex_unlock(&sync_info_mutex);
+        return 1;
+    }
 
     if(prev == NULL){
         *head = curr->next;
@@ -101,14 +112,17 @@ int remove_sync_info(sync_info_mem_store** head, const char* source){
         prev->next = curr->next;
     }
     
-
     free(curr);
+
+    pthread_mutex_unlock(&sync_info_mutex);
     return 0;
 }
 
 
 
 void free_all_sync_info(sync_info_mem_store** head){
+    pthread_mutex_lock(&sync_info_mutex);
+
     if(head == NULL || *head == NULL) return;
 
     sync_info_mem_store* curr = *head;
@@ -121,6 +135,8 @@ void free_all_sync_info(sync_info_mem_store** head){
     }
 
     *head = NULL;
+    pthread_mutex_unlock(&sync_info_mutex);
+
 }
 
 

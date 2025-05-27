@@ -31,6 +31,13 @@
     echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2424
 
 */
+struct linux_dirent64 {
+    ino64_t        d_ino;
+    off64_t        d_off;
+    unsigned short d_reclen;
+    unsigned char  d_type;
+    char           d_name[];
+};
 
 volatile sig_atomic_t client_active = 1;
 
@@ -113,9 +120,8 @@ int parse_manager_command(const char* buffer, client_command *full_command){
 
 
 int get_filenames(const char *path, char filenames[][BUFFSIZ]){
-    printf("PATH [%s]\n\n", path);
-
     char buf[BUFFSIZ];
+    
     int dir_fd = open(path, O_RDONLY | O_DIRECTORY);
     if(dir_fd == -1) {
         perror("open dir");

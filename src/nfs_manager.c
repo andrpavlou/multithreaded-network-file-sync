@@ -3,6 +3,7 @@
 #include "sync_task.h"
 #include "sync_info.h"
 
+
 /*
   socket()
     |
@@ -13,7 +14,14 @@
   read()
 */
 
+
+
+sync_info_mem_store *head = NULL;
 volatile sig_atomic_t manager_active = 1;
+
+void handle_sigint(int sig){
+    manager_active = 0;
+}
 
 
 
@@ -148,9 +156,10 @@ void *worker_thread(void *arg){
     return NULL;
 }
 
-void handle_sigint(int sig){
-    manager_active = 0;
-}
+
+
+
+
 
 
 int parse_console_command(const char* buffer, manager_command *full_command){
@@ -171,10 +180,12 @@ int parse_console_command(const char* buffer, manager_command *full_command){
         // we should return error
         if(first_token == NULL || strtok(NULL, " ") != NULL) return 1;
 
-        strncpy(full_command->source, first_token, BUFFSIZ - 1);
-        full_command->source[BUFFSIZ - 1] = '\0';
-        
-        full_command->target[0] = '\0';
+
+        strncpy(full_command->cancel_dir, first_token, BUFFSIZ - 1);
+
+        full_command->source_ip[BUFFSIZ - 1] = '\0';
+        full_command->target_ip[0] = '\0';
+
         return 0;
     }
 
@@ -193,8 +204,8 @@ int parse_console_command(const char* buffer, manager_command *full_command){
         char *first_token = strtok(temp, " ");  // Source path
         if(first_token == NULL) return 1;
 
-        strncpy(full_command->source, first_token, BUFFSIZ - 1);
-        full_command->source[BUFFSIZ - 1] = '\0';
+        parse_path_target(first_token, full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        full_command->source_ip[BUFFSIZ - 1] = '\0';
 
 
         
@@ -202,8 +213,8 @@ int parse_console_command(const char* buffer, manager_command *full_command){
         if(second_token == NULL) return 1;
 
         
-        strncpy(full_command->target, second_token, BUFFSIZ - 1);
-        full_command->target[BUFFSIZ - 1] = '\0';
+        parse_path_target(second_token, full_command->target_dir, full_command->target_ip, &full_command->target_port);
+        full_command->target_ip[BUFFSIZ - 1] = '\0';
 
         char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
         if(end != NULL) return 1;
@@ -214,8 +225,8 @@ int parse_console_command(const char* buffer, manager_command *full_command){
     if(!strncasecmp(buffer, "SHUTDOWN", 8)){
         full_command->op = SHUTDOWN;
 
-        full_command->source[0] = '\0';
-        full_command->target[0] = '\0';
+        full_command->source_ip[0] = '\0';
+        full_command->target_ip[0] = '\0';
 
         return 0;
     }
@@ -225,7 +236,8 @@ int parse_console_command(const char* buffer, manager_command *full_command){
 
 
 
-// bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2345 -b 512
+
+// bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2345 -b 10
 int main(int argc, char *argv[]){
     char *logfile       = NULL;
     char *config_file   = NULL;
@@ -234,8 +246,19 @@ int main(int argc, char *argv[]){
     int worker_limit    = -1;
     int buffer_size     = -1;
 
-    if(check_args_manager(argc, argv, &logfile, &config_file, &worker_limit, &port, &buffer_size)){
+    int check_args_status = check_args_manager(argc, argv, &logfile, &config_file, &worker_limit, &port, &buffer_size);
+    if(check_args_status == 1){
         perror("USAGE: ./nfs_manager -l <logfile> -c <config_file> -n <worker_limit> -p <port> -b <buffer_size>");
+        return 1;
+    }
+    if(check_args_status == -1){
+        perror("ERROR: -b Must be > 0");
+        return 1;
+    }
+
+    sync_task_ts queue_tasks;
+    if(init_sync_task_ts(&queue_tasks, buffer_size)){
+        perror("init sync task");
         return 1;
     }
 
@@ -245,6 +268,8 @@ int main(int argc, char *argv[]){
     sa.sa_flags = 0; 
     sigaction(SIGINT, &sa, NULL);
 
+
+
     // Config file parsing
     int fd_config;
     if((fd_config = open(config_file, O_RDONLY)) < 0){
@@ -253,9 +278,7 @@ int main(int argc, char *argv[]){
     }
 
     int total_config_pairs = line_counter_of_file(fd_config, BUFFSIZ);
-
     lseek(fd_config, 0, SEEK_SET); // Reset the pointer at the start of the file
-
     config_pairs *conf_pairs = malloc(sizeof(config_pairs) * total_config_pairs);
     create_cf_pairs(fd_config, conf_pairs);
     
@@ -292,6 +315,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+
     printf("Accepted connection \n") ;
     while(manager_active){
 
@@ -305,18 +329,78 @@ int main(int argc, char *argv[]){
         }
         read_buffer[n_read] = '\0';
 
-        manager_command cmd;
-        if(parse_console_command(read_buffer, &cmd)){
+        manager_command curr_cmd;
+        if(parse_console_command(read_buffer, &curr_cmd)){
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
             break;
         }
-        
-        printf("Whole command: %s\n", read_buffer);
-        printf("Operation: %d\n", cmd.op);
-        printf("Source: %s\n", cmd.source);
-        printf("Target: %s\n", cmd.target);
 
-        printf("Read %s\n", read_buffer);
+        // parse_path_target(const char *full_path, char *dir_path, char *ip, int *port);
+
+        // sync_task *new_task         = malloc(sizeof(sync_task));
+        // new_task->manager_cmd.op    = curr_cmd.op;
+
+        // ssize_t manager_buff_size = sizeof(new_task->manager_cmd.source);
+        // strncpy(new_task->manager_cmd.source, curr_cmd.source, manager_buff_size - 1);
+        // new_task->manager_cmd.source[manager_buff_size - 1] = '\0';
+
+        // strncpy(new_task->manager_cmd.target, curr_cmd.target, manager_buff_size - 1);
+        // new_task->manager_cmd.target[manager_buff_size - 1] = '\0';
+
+
+        // int sock_source_read;
+        // if(establish_connection(&sock_source_read, conf_pairs->source_ip, conf_pairs->source_port)){
+        //     perror("establish con");
+        //     exit(1);
+        // }   
+
+        // char list_cmd_buff[BUFFSIZ];
+        // int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", conf_pairs->source_dir_path);
+        // list_cmd_buff[list_len] = '\0';
+
+
+        // //========== Request List Command ========== //
+        // if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
+        //     perror("list write");
+        //     return NULL;
+        // }
+
+        // char *list_reply_buff = NULL;
+        // read_list_response(sock_source_read, &list_reply_buff);
+        
+        // // Locate ack and remove it
+        // char *ack_start = strstr(list_reply_buff, "\nACK\n");
+        // if(ack_start) ack_start[0] = '\0'; 
+
+        // char *file_buff[MAX_FILES];
+        // int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
+
+
+
+
+
+        printf("Whole command: %s\n", read_buffer);
+        if(curr_cmd.op == ADD){
+            printf("Operation:\t%d\n", curr_cmd.op);
+    
+            printf("Source ip:\t%s\n", curr_cmd.source_ip);
+            printf("Source port:\t%d\n", curr_cmd.source_port);
+            printf("Source dir:\t%s\n\n", curr_cmd.source_dir);
+            
+            printf("Target ip:\t%s\n", curr_cmd.target_ip);
+            printf("Target port:\t%d\n", curr_cmd.target_port);
+            printf("Target dir:\t%s\n\n", curr_cmd.target_dir);
+
+        } else if(curr_cmd.op == CANCEL){
+            printf("Operation:\t%d\n", curr_cmd.op);
+            printf("Target dir:\t%s\n\n", curr_cmd.cancel_dir);
+        } else if(curr_cmd.op == SHUTDOWN){
+            printf("Operation:\t%d\n", curr_cmd.op);
+            printf("Shutting down cmd rec");
+        } else {
+            printf("Invalid command\n");
+        }
+        
     }
 
     close(socket_client);
@@ -331,6 +415,6 @@ int main(int argc, char *argv[]){
     // pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
     // pthread_join(worker_th, NULL);
 
-
+    free(queue_tasks.tasks_array);
     return 0;
 }

@@ -5,6 +5,7 @@
 #define BUFFSIZ 256
 #define MAX_FILES 100
 
+
 #include "utils.h"
 #include <stdio.h>
 #include <string.h>
@@ -27,13 +28,8 @@
 #include <time.h>
 #include <sys/time.h>
 
-struct linux_dirent64 {
-    ino64_t        d_ino;
-    off64_t        d_off;
-    unsigned short d_reclen;
-    unsigned char  d_type;
-    char           d_name[];
-};
+
+
 
 typedef enum{
     LIST,
@@ -59,8 +55,18 @@ typedef struct {
 
 typedef struct {
     manager_operation op;
-    char source[BUFFSIZ];      // list + pull: dir for push
-    char target[BUFFSIZ];      // push
+    char full_path[BUFFSIZ];
+    char source_ip[BUFFSIZ];      // list + pull: dir for push
+    char target_ip[BUFFSIZ];      // push
+
+    char source_dir[BUFFSIZ];
+    char target_dir[BUFFSIZ];
+
+    int source_port;
+    int target_port;
+
+
+    char cancel_dir[BUFFSIZ]; // TODO: might just need to seperate cancel/add cmd 
 } manager_command;
 
 

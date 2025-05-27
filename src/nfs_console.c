@@ -8,63 +8,6 @@ void handle_sigint(int sig){
 
 
 
-int parse_console_command(const char* buffer, client_command *full_command){
-    memset(full_command->data, 0, BUFFSIZ);
-
-    if(!strncmp(buffer, "LIST", 4)){
-        full_command->op = LIST;
-        strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
-        full_command->path[BUFFSIZ - 1] = '\0';
-        
-        return 0;
-    }
-
-    if(!strncmp(buffer, "PULL", 4)) {
-        full_command->op = PULL;
-        strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
-        full_command->path[BUFFSIZ - 1] = '\0';
-        
-        return 0;
-    } 
-
-    if(!strncmp(buffer, "PUSH", 4)){
-        full_command->op = PUSH;
-
-        char tmp_buffer[2 * BUFFSIZ];
-        strncpy(tmp_buffer, buffer, sizeof(tmp_buffer) - 1);
-        tmp_buffer[sizeof(tmp_buffer) - 1] = '\0';
-
-        char *token = strtok(tmp_buffer, " "); 
-        token = strtok(NULL, " ");       
-        if(!token) return 1;
-        
-
-        strncpy(full_command->path, token, BUFFSIZ - 1);
-        full_command->path[BUFFSIZ - 1] = '\0';
-        
-        token = strtok(NULL, " ");       
-        if(!token) return 1;
-
-
-        full_command->chunk_size = atoi(token);
-        if(full_command->chunk_size < -1 || full_command->chunk_size > BUFFSIZ){
-            perror("invalid chunk size sent");
-            return 1;
-        } 
-
-        token = strtok(NULL, "");        
-        if(!token) return 1;
-
-        size_t memcpy_s = full_command->chunk_size == -1 ? strlen(token) : full_command->chunk_size;
-        memcpy(full_command->data, token, memcpy_s);
-        full_command->data[strlen(token) + 1] = '\0';
-
-        return 0;
-    }
-    return 1;
-}
-
-
 
 // bin/nfs_console -l logs/console.log -h localhost -p 2525
 int main(int argc, char* argv[]){
