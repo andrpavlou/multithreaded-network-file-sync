@@ -27,7 +27,7 @@ typedef struct sync_info_mem_store {
 } sync_info_mem_store;
 
 
-int add_sync_info(sync_info_mem_store** head, const char* source, const char* target);
+sync_info_mem_store* add_sync_info(sync_info_mem_store** head, const char* source, const char* target);
 sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source);
 int remove_sync_info(sync_info_mem_store** head, const char* source);
 void free_all_sync_info(sync_info_mem_store** head);

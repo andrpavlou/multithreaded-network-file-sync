@@ -14,10 +14,10 @@
   read()
 */
 
+void print_sync_task(sync_task *task);
 
-
-sync_info_mem_store *head = NULL;
 volatile sig_atomic_t manager_active = 1;
+
 
 void handle_sigint(int sig){
     manager_active = 0;
@@ -52,6 +52,8 @@ void *worker_thread(void *arg){
     if(ack_start) ack_start[0] = '\0'; 
 
     char *file_buff[MAX_FILES];
+    memset(file_buff, 0, sizeof(file_buff));
+
     int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
 
     // Establish connection with the target host to sync the files with pushes
@@ -159,10 +161,7 @@ void *worker_thread(void *arg){
 
 
 
-
-
-
-int parse_console_command(const char* buffer, manager_command *full_command){
+int parse_console_command(const char* buffer, manager_command *full_command, char **source_full_path, char **target_full_path){
 
     if(!strncasecmp(buffer, "CANCEL", 6)){
         full_command->op = CANCEL;
@@ -175,13 +174,13 @@ int parse_console_command(const char* buffer, manager_command *full_command){
         temp[strcspn(temp, "\n")] = '\0';   // remove newline
 
 
-        char *first_token = strtok(temp, " ");
+        (*source_full_path) = strtok(temp, " ");
         // If the current first_token is null or more text exists after first_token with spaces
         // we should return error
-        if(first_token == NULL || strtok(NULL, " ") != NULL) return 1;
+        if((*source_full_path) == NULL || strtok(NULL, " ") != NULL) return 1;
 
 
-        strncpy(full_command->cancel_dir, first_token, BUFFSIZ - 1);
+        strncpy(full_command->cancel_dir, (*source_full_path), BUFFSIZ - 1);
 
         full_command->source_ip[BUFFSIZ - 1] = '\0';
         full_command->target_ip[0] = '\0';
@@ -201,19 +200,18 @@ int parse_console_command(const char* buffer, manager_command *full_command){
         temp[strcspn(temp, "\n")] = '\0';   // remove newline
 
 
-        char *first_token = strtok(temp, " ");  // Source path
-        if(first_token == NULL) return 1;
+        (*source_full_path) = strtok(temp, " ");  // Source path
+        if((*source_full_path) == NULL) return 1;
 
-        parse_path_target(first_token, full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        parse_path_target((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
         full_command->source_ip[BUFFSIZ - 1] = '\0';
 
+        
+        (*target_full_path) = strtok(NULL, " "); // Target path
+        if((*target_full_path) == NULL) return 1;
 
         
-        char *second_token = strtok(NULL, " "); // Target path
-        if(second_token == NULL) return 1;
-
-        
-        parse_path_target(second_token, full_command->target_dir, full_command->target_ip, &full_command->target_port);
+        parse_path_target((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
         full_command->target_ip[BUFFSIZ - 1] = '\0';
 
         char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
@@ -233,7 +231,6 @@ int parse_console_command(const char* buffer, manager_command *full_command){
 
     return 1;
 }
-
 
 
 
@@ -308,102 +305,143 @@ int main(int argc, char *argv[]){
     socklen_t clientlen;
     printf("Listening for connections to port % d \n", port);
     
-    int socket_client = 0;
+    int socket_console_read = 0;
     clientlen = sizeof(struct sockaddr_in);
-    if((socket_client = accept(socket_manager, clientptr, &clientlen)) < 0){
+    if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
         perror("accept ");
         return 1;
     }
 
 
+
+    sync_info_mem_store *sync_info_head = NULL;
     printf("Accepted connection \n") ;
     while(manager_active){
-
         char read_buffer[BUFFSIZ];
         memset(read_buffer, 0, sizeof(read_buffer));
         
         ssize_t n_read;
-        if((n_read = read(socket_client, read_buffer, BUFFSIZ - 1)) <= 0){
+        if((n_read = read(socket_console_read, read_buffer, BUFFSIZ - 1)) <= 0){
             perror("Read from console");
             return 1;
         }
         read_buffer[n_read] = '\0';
 
+
+        char *source_full_path;
+        char *target_full_path;
         manager_command curr_cmd;
-        if(parse_console_command(read_buffer, &curr_cmd)){
+        if(parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)){
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
             break;
         }
 
-        // parse_path_target(const char *full_path, char *dir_path, char *ip, int *port);
 
-        // sync_task *new_task         = malloc(sizeof(sync_task));
-        // new_task->manager_cmd.op    = curr_cmd.op;
+        int sock_source_read;
+        if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
+            perror("establish con");
+        }   
 
-        // ssize_t manager_buff_size = sizeof(new_task->manager_cmd.source);
-        // strncpy(new_task->manager_cmd.source, curr_cmd.source, manager_buff_size - 1);
-        // new_task->manager_cmd.source[manager_buff_size - 1] = '\0';
+        char list_cmd_buff[BUFFSIZ];
+        int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", curr_cmd.source_dir);
+        // list_cmd_buff[list_len] = '\0'; ?? snprintf null term?
 
-        // strncpy(new_task->manager_cmd.target, curr_cmd.target, manager_buff_size - 1);
-        // new_task->manager_cmd.target[manager_buff_size - 1] = '\0';
-
-
-        // int sock_source_read;
-        // if(establish_connection(&sock_source_read, conf_pairs->source_ip, conf_pairs->source_port)){
-        //     perror("establish con");
-        //     exit(1);
-        // }   
-
-        // char list_cmd_buff[BUFFSIZ];
-        // int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", conf_pairs->source_dir_path);
-        // list_cmd_buff[list_len] = '\0';
 
 
         // //========== Request List Command ========== //
-        // if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
-        //     perror("list write");
-        //     return NULL;
-        // }
+        if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
+            perror("list write");
+        }
 
-        // char *list_reply_buff = NULL;
-        // read_list_response(sock_source_read, &list_reply_buff);
+        char *list_reply_buff = NULL;
+        read_list_response(sock_source_read, &list_reply_buff);
         
-        // // Locate ack and remove it
-        // char *ack_start = strstr(list_reply_buff, "\nACK\n");
-        // if(ack_start) ack_start[0] = '\0'; 
+        // Locate ack and remove it
+        char *ack_start = strstr(list_reply_buff, "\nACK\n");
+        if(ack_start) ack_start[0] = '\0'; 
 
-        // char *file_buff[MAX_FILES];
-        // int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
+        char *file_buff[MAX_FILES];
+        unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
+
+        
+        for(int i = 0; i < total_src_files; i++){
+            printf("file%d: %s\n", i, file_buff[i]);
+            sync_task *new_task         = malloc(sizeof(sync_task));
+            new_task->manager_cmd.op    = curr_cmd.op;
+
+            ssize_t manager_buff_size = sizeof(new_task->manager_cmd.source_ip);
 
 
+            new_task->manager_cmd.source_port = curr_cmd.source_port;
+            strncpy(new_task->manager_cmd.source_ip, curr_cmd.source_ip, manager_buff_size - 1);
+            new_task->manager_cmd.source_ip[manager_buff_size - 1] = '\0';
+
+            new_task->manager_cmd.target_port = curr_cmd.target_port;
+            strncpy(new_task->manager_cmd.target_ip, curr_cmd.target_ip, manager_buff_size - 1);
+            new_task->manager_cmd.target_ip[manager_buff_size - 1] = '\0';
 
 
+            if(new_task->manager_cmd.op == ADD){
+                strncpy(new_task->manager_cmd.source_dir, curr_cmd.source_dir, manager_buff_size - 1);
+                new_task->manager_cmd.source_dir[manager_buff_size - 1] = '\0';
 
-        printf("Whole command: %s\n", read_buffer);
-        if(curr_cmd.op == ADD){
-            printf("Operation:\t%d\n", curr_cmd.op);
-    
-            printf("Source ip:\t%s\n", curr_cmd.source_ip);
-            printf("Source port:\t%d\n", curr_cmd.source_port);
-            printf("Source dir:\t%s\n\n", curr_cmd.source_dir);
+                strncpy(new_task->manager_cmd.target_dir, curr_cmd.target_dir, manager_buff_size - 1);
+                new_task->manager_cmd.target_dir[manager_buff_size - 1] = '\0';
+            }
+
             
-            printf("Target ip:\t%s\n", curr_cmd.target_ip);
-            printf("Target port:\t%d\n", curr_cmd.target_port);
-            printf("Target dir:\t%s\n\n", curr_cmd.target_dir);
+            // / Modify cancel for dif logic not inside this for loop
+            // if(new_task->manager_cmd.op == CANCEL){
+            //     strncpy(new_task->manager_cmd.cancel_dir, curr_cmd.cancel_dir, manager_buff_size - 1);
+            //     new_task->manager_cmd.cancel_dir[manager_buff_size - 1] = '\0';
+                
+            // }
 
-        } else if(curr_cmd.op == CANCEL){
-            printf("Operation:\t%d\n", curr_cmd.op);
-            printf("Target dir:\t%s\n\n", curr_cmd.cancel_dir);
-        } else if(curr_cmd.op == SHUTDOWN){
-            printf("Operation:\t%d\n", curr_cmd.op);
-            printf("Shutting down cmd rec");
-        } else {
-            printf("Invalid command\n");
+            strncpy(new_task->filename, file_buff[i], sizeof(new_task->filename) - 1);
+            new_task->filename[sizeof(new_task->filename) - 1] = '\0';
+
+            sync_info_mem_store *inserted_node = add_sync_info(&sync_info_head, source_full_path, target_full_path);
+            if(inserted_node == NULL){
+                perror("sync info insert");    
+                free(new_task);
+            } else {
+                new_task->node = inserted_node;
+                enqueue_task(&queue_tasks, new_task);    
+            }
+
+            // print_sync_task(new_task);
         }
         
+
+        // printf("source full: %s\n", source_full_path);
+        // printf("target full: %s\n", target_full_path);
+
+        // printf("Whole command: %s\n", read_buffer);
+        // if(curr_cmd.op == ADD){
+        //     printf("Operation:\t%d\n", curr_cmd.op);
+    
+        //     printf("Source ip:\t%s\n", curr_cmd.source_ip);
+        //     printf("Source port:\t%d\n", curr_cmd.source_port);
+        //     printf("Source dir:\t%s\n\n", curr_cmd.source_dir);
+            
+        //     printf("Target ip:\t%s\n", curr_cmd.target_ip);
+        //     printf("Target port:\t%d\n", curr_cmd.target_port);
+        //     printf("Target dir:\t%s\n\n", curr_cmd.target_dir);
+
+        // } else if(curr_cmd.op == CANCEL){
+        //     printf("Operation:\t%d\n", curr_cmd.op);
+        //     printf("Target dir:\t%s\n\n", curr_cmd.cancel_dir);
+        // } else if(curr_cmd.op == SHUTDOWN){
+        //     printf("Operation:\t%d\n", curr_cmd.op);
+        //     printf("Shutting down cmd rec");
+        // } else {
+        //     printf("Invalid command\n");
+        // }
+        
+        close(sock_source_read);
     }
 
-    close(socket_client);
+    close(socket_console_read);
     close(socket_manager);
 
     printf("\n exiting \n");
@@ -418,3 +456,9 @@ int main(int argc, char *argv[]){
     free(queue_tasks.tasks_array);
     return 0;
 }
+
+
+
+
+
+

@@ -16,21 +16,21 @@
 pthread_mutex_t sync_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-int add_sync_info(sync_info_mem_store** head, const char* source, const char* target){
+sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* source, const char* target){
     pthread_mutex_lock(&sync_info_mutex);
 
     sync_info_mem_store* new_node = malloc(sizeof(sync_info_mem_store));
     if(new_node == NULL){
         pthread_mutex_unlock(&sync_info_mutex);
-        return 1;
+        return NULL;
     } 
 
 
-    strncpy(new_node->source, source, BUFFSIZ);
-    new_node->source[BUFFSIZ - 1] = '\0';
+    strncpy(new_node->source, source, sizeof(new_node->source) - 1);
+    new_node->source[sizeof(new_node->source) - 1] = '\0';
     
-    strncpy(new_node->target, target, BUFFSIZ);
-    new_node->target[BUFFSIZ - 1] = '\0';
+    strncpy(new_node->target, target, sizeof(new_node->target) - 1);
+    new_node->target[sizeof(new_node->target) - 1] = '\0';
 
 
     // zero for now, might need to be changed.
@@ -43,9 +43,9 @@ int add_sync_info(sync_info_mem_store** head, const char* source, const char* ta
     new_node->next          = NULL;
 
     if(*head == NULL){
-        pthread_mutex_unlock(&sync_info_mutex);
         (*head) = new_node;
-        return 0;
+        pthread_mutex_unlock(&sync_info_mutex);
+        return new_node;
     }
 
     sync_info_mem_store *last = *head;
@@ -55,7 +55,8 @@ int add_sync_info(sync_info_mem_store** head, const char* source, const char* ta
     last->next = new_node;
 
     pthread_mutex_unlock(&sync_info_mutex);
-    return 0;
+
+    return new_node;
 }
 
 
