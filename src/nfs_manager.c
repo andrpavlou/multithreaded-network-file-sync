@@ -14,7 +14,7 @@
   read()
 */
 
-void print_sync_task(sync_task *task);
+void print_queue(sync_task_ts *task);
 
 volatile sig_atomic_t manager_active = 1;
 
@@ -185,6 +185,7 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         full_command->source_ip[BUFFSIZ - 1] = '\0';
         full_command->target_ip[0] = '\0';
 
+        (*target_full_path) = NULL;
         return 0;
     }
 
@@ -234,7 +235,97 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 
 
 
-// bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2345 -b 10
+
+
+int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
+    const char* source_full_path, const char *target_full_path){
+
+    int sock_source_read;
+    if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
+        perror("establish con");
+        return 1;
+    }   
+
+    char list_cmd_buff[BUFFSIZ];
+    int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", curr_cmd.source_dir);
+    // list_cmd_buff[list_len] = '\0'; ?? snprintf null term?
+
+
+    // //========== Request List Command ========== //
+    if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
+        perror("list write");
+        return 1;
+    }
+
+    char *list_reply_buff = NULL;
+    read_list_response(sock_source_read, &list_reply_buff);
+    
+    // Locate ack and remove it
+    char *ack_start = strstr(list_reply_buff, "\nACK\n");
+    if(ack_start) ack_start[0] = '\0'; 
+
+    char *file_buff[MAX_FILES];
+    unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
+
+    
+    for(int i = 0; i < total_src_files; i++){
+        sync_task *new_task         = malloc(sizeof(sync_task));
+        new_task->manager_cmd.op    = curr_cmd.op;
+
+        ssize_t manager_buff_size   = sizeof(new_task->manager_cmd.source_ip);
+
+        // copy srouce ip/port
+        new_task->manager_cmd.source_port = curr_cmd.source_port;
+        strncpy(new_task->manager_cmd.source_ip, curr_cmd.source_ip, manager_buff_size - 1);
+        new_task->manager_cmd.source_ip[manager_buff_size - 1] = '\0';
+
+        // copy target ip/port
+        new_task->manager_cmd.target_port = curr_cmd.target_port;
+        strncpy(new_task->manager_cmd.target_ip, curr_cmd.target_ip, manager_buff_size - 1);
+        new_task->manager_cmd.target_ip[manager_buff_size - 1] = '\0';
+
+        // copy source dir
+        strncpy(new_task->manager_cmd.source_dir, curr_cmd.source_dir, manager_buff_size - 1);
+        new_task->manager_cmd.source_dir[manager_buff_size - 1] = '\0';
+
+        // copy target dir
+        strncpy(new_task->manager_cmd.target_dir, curr_cmd.target_dir, manager_buff_size - 1);
+        new_task->manager_cmd.target_dir[manager_buff_size - 1] = '\0';
+
+        // current file
+        strncpy(new_task->filename, file_buff[i], sizeof(new_task->filename) - 1);
+        new_task->filename[sizeof(new_task->filename) - 1] = '\0';
+
+        // Check if the source full path is already inserted and keep that node, otherwise just insert it
+        sync_info_mem_store *find_node;
+        if((find_node = find_sync_info((*sync_info_head), source_full_path)) != NULL){
+            new_task->node = find_node;
+            enqueue_task(queue_tasks, new_task);
+
+            continue;
+        } 
+        
+        sync_info_mem_store *inserted_node = add_sync_info(sync_info_head, source_full_path, target_full_path);
+        if(inserted_node == NULL) {
+            perror("sync info insert");    
+
+            free(new_task);
+            close(sock_source_read);
+
+            return 1;
+        } 
+
+        new_task->node = inserted_node;
+        enqueue_task(queue_tasks, new_task);
+    }
+
+    close(sock_source_read);
+    return 0;
+}
+
+
+
+// bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
 int main(int argc, char *argv[]){
     char *logfile       = NULL;
     char *config_file   = NULL;
@@ -335,161 +426,94 @@ int main(int argc, char *argv[]){
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
             break;
         }
+        
 
-
-        int sock_source_read;
-        if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
-            perror("establish con");
-        }   
-
-        char list_cmd_buff[BUFFSIZ];
-        int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s", curr_cmd.source_dir);
-        // list_cmd_buff[list_len] = '\0'; ?? snprintf null term?
-
-
-
-        // //========== Request List Command ========== //
-        if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
-            perror("list write");
+        if(curr_cmd.op == ADD){
+            enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
         }
 
-        char *list_reply_buff = NULL;
-        read_list_response(sock_source_read, &list_reply_buff);
-        
-        // Locate ack and remove it
-        char *ack_start = strstr(list_reply_buff, "\nACK\n");
-        if(ack_start) ack_start[0] = '\0'; 
-
-        char *file_buff[MAX_FILES];
-        unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
-
-        
-        for(int i = 0; i < total_src_files; i++){
-            printf("file%d: %s\n", i, file_buff[i]);
+        if(curr_cmd.op == CANCEL){
             sync_task *new_task         = malloc(sizeof(sync_task));
             new_task->manager_cmd.op    = curr_cmd.op;
 
-            ssize_t manager_buff_size = sizeof(new_task->manager_cmd.source_ip);
+            ssize_t manager_buff_size   = sizeof(new_task->manager_cmd.cancel_dir);
+
+            strncpy(new_task->manager_cmd.cancel_dir, curr_cmd.cancel_dir, manager_buff_size - 1);
+            new_task->manager_cmd.cancel_dir[manager_buff_size - 1] = '\0';
 
 
-            new_task->manager_cmd.source_port = curr_cmd.source_port;
-            strncpy(new_task->manager_cmd.source_ip, curr_cmd.source_ip, manager_buff_size - 1);
-            new_task->manager_cmd.source_ip[manager_buff_size - 1] = '\0';
+            find_sync_info_by_dir(sync_info_head, new_task->manager_cmd.cancel_dir);
+            // sync_info_mem_store *inserted_node = add_sync_info(&sync_info_head, source_full_path, target_full_path);
+            // if(inserted_node == NULL){
+            //     perror("sync info insert");    
 
-            new_task->manager_cmd.target_port = curr_cmd.target_port;
-            strncpy(new_task->manager_cmd.target_ip, curr_cmd.target_ip, manager_buff_size - 1);
-            new_task->manager_cmd.target_ip[manager_buff_size - 1] = '\0';
+            //     free(new_task);
+            //     return 1;
+            // } 
 
-
-            if(new_task->manager_cmd.op == ADD){
-                strncpy(new_task->manager_cmd.source_dir, curr_cmd.source_dir, manager_buff_size - 1);
-                new_task->manager_cmd.source_dir[manager_buff_size - 1] = '\0';
-
-                strncpy(new_task->manager_cmd.target_dir, curr_cmd.target_dir, manager_buff_size - 1);
-                new_task->manager_cmd.target_dir[manager_buff_size - 1] = '\0';
-            }
-
-            
-            // / Modify cancel for dif logic not inside this for loop
-            // if(new_task->manager_cmd.op == CANCEL){
-            //     strncpy(new_task->manager_cmd.cancel_dir, curr_cmd.cancel_dir, manager_buff_size - 1);
-            //     new_task->manager_cmd.cancel_dir[manager_buff_size - 1] = '\0';
-                
-            // }
-
-            strncpy(new_task->filename, file_buff[i], sizeof(new_task->filename) - 1);
-            new_task->filename[sizeof(new_task->filename) - 1] = '\0';
-
-            sync_info_mem_store *inserted_node = add_sync_info(&sync_info_head, source_full_path, target_full_path);
-            if(inserted_node == NULL){
-                perror("sync info insert");    
-                free(new_task);
-            } else {
-                new_task->node = inserted_node;
-                enqueue_task(&queue_tasks, new_task);    
-            }
-
-            print_sync_task(new_task);
+            // new_task->node = inserted_node;
+            // enqueue_task(&queue_tasks, new_task);
         }
-        
 
-        // printf("source full: %s\n", source_full_path);
-        // printf("target full: %s\n", target_full_path);
+        if(curr_cmd.op == SHUTDOWN){
+            manager_active = 0;
+            continue;
+        }
 
-        // printf("Whole command: %s\n", read_buffer);
-        // if(curr_cmd.op == ADD){
-        //     printf("Operation:\t%d\n", curr_cmd.op);
-    
-        //     printf("Source ip:\t%s\n", curr_cmd.source_ip);
-        //     printf("Source port:\t%d\n", curr_cmd.source_port);
-        //     printf("Source dir:\t%s\n\n", curr_cmd.source_dir);
-            
-        //     printf("Target ip:\t%s\n", curr_cmd.target_ip);
-        //     printf("Target port:\t%d\n", curr_cmd.target_port);
-        //     printf("Target dir:\t%s\n\n", curr_cmd.target_dir);
-
-        // } else if(curr_cmd.op == CANCEL){
-        //     printf("Operation:\t%d\n", curr_cmd.op);
-        //     printf("Target dir:\t%s\n\n", curr_cmd.cancel_dir);
-        // } else if(curr_cmd.op == SHUTDOWN){
-        //     printf("Operation:\t%d\n", curr_cmd.op);
-        //     printf("Shutting down cmd rec");
-        // } else {
-        //     printf("Invalid command\n");
-        // }
-        
-        close(sock_source_read);
     }
+
+    print_queue(&queue_tasks);
 
     close(socket_console_read);
     close(socket_manager);
 
     printf("\n exiting \n");
-
-
     
     ////// Thread workers for tasks
     // pthread_t worker_th;
     // pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
     // pthread_join(worker_th, NULL);
-
+    
+    free_all_sync_info(&sync_info_head);
     free(queue_tasks.tasks_array);
+
     return 0;
 }
 
 
 
-
-
-
-
-void print_sync_task(sync_task *task) {
+void print_queue(sync_task_ts *task){
     if(!task){
         printf("NULL task\n");
         return;
     }
     
-    printf("--- Sync Task ---\n");
-    printf("Operation\t: %d\n", task->manager_cmd.op);
+
+    for(int i = 0; i < task->size; i++){
+        printf("--- Sync Task ---\n");
+        printf("Operation\t: %d\n", task->tasks_array[i]->manager_cmd.op);
+
+        if(task->tasks_array[i]->manager_cmd.op == ADD){
+            printf("Filename\t: %s\n", task->tasks_array[i]->filename );
+            printf("Source Dir\t: %s\n", task->tasks_array[i]->manager_cmd.source_dir);
+            printf("Source IP\t: %s\n", task->tasks_array[i]->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", task->tasks_array[i]->manager_cmd.source_port);
+            printf("Target Dir\t: %s\n", task->tasks_array[i]->manager_cmd.target_dir);
+            printf("Target IP\t: %s\n", task->tasks_array[i]->manager_cmd.target_ip);
+            printf("Target Port\t: %d\n", task->tasks_array[i]->manager_cmd.target_port);
+        }
+
+
+        if(task->tasks_array[i]->node){
+            printf("Sync Info:\n");
+            printf("  Source\t: %s\n", task->tasks_array[i]->node->source);
+            printf("  Target\t: %s\n", task->tasks_array[i]->node->target);
+        } else {
+            printf("Sync Info: NULL\n");
+        }
+
+        printf("----------------------------------\n");
+    }
+
     
-    if(task->manager_cmd.op == ADD){
-        printf("Filename\t: %s\n", task->filename);
-        printf("Source Dir\t: %s\n", task->manager_cmd.source_dir);
-        printf("Source IP\t: %s\n", task->manager_cmd.source_ip);
-        printf("Source Port\t: %d\n", task->manager_cmd.source_port);
-        printf("Target Dir\t: %s\n", task->manager_cmd.target_dir);
-        printf("Target IP\t: %s\n", task->manager_cmd.target_ip);
-        printf("Target Port\t: %d\n", task->manager_cmd.target_port);
-    }
-
-
-    if(task->node){
-        printf("Sync Info:\n");
-        printf("  Source\t: %s\n", task->node->source);
-        printf("  Target\t: %s\n", task->node->target);
-    } else {
-        printf("Sync Info: NULL\n");
-    }
-
-    printf("----------------------------------\n");
 }

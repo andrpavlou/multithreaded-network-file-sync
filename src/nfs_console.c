@@ -36,18 +36,27 @@ int main(int argc, char* argv[]){
     printf("Give input: ");
     while(console_active){
         char console_buffer[BUFFSIZ];
-        printf("Give input: ");
+        
         ssize_t read_b = read(0, console_buffer, BUFFSIZ - 1);
+        if(read_b < 0){
+            perror("read");
+            continue;
+        }
+        console_buffer[strcspn(console_buffer, "\n")] = '\0';
+
 
         ssize_t write_b = write_all(socket_host_manager, console_buffer, read_b);
         if(write_b == -1){
             perror("write");
         }
 
+
+        if(!strncasecmp(console_buffer, "shutdown", 9)) console_active = 0;
+
         printf("Bytes written: %ld\n", write_b);
     }
 
-
+    printf("exiting\n");
     close(socket_host_manager);
     return 0;
 }

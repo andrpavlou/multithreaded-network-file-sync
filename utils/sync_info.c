@@ -1,17 +1,6 @@
 #include "sync_info.h"
 
-// void print_all_sync_info(sync_info_mem_store* head){
-//     if (head == NULL) {
-//         printf("No monitored directories.\n");
-//         return;
-//     }
 
-//     sync_info_mem_store* curr = head;
-//     while(curr != NULL){
-//         printf("Source: %s\t-> Target:%s\tWFD%d\n", curr->source, curr->target, curr->watch_fd);
-//         curr = curr->next;
-//     }
-// }
 
 pthread_mutex_t sync_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -28,12 +17,13 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
 
     strncpy(new_node->source, source, sizeof(new_node->source) - 1);
     new_node->source[sizeof(new_node->source) - 1] = '\0';
-    
+
+
+    // Only "ADD" will be inserted, so no need to check if target is null
     strncpy(new_node->target, target, sizeof(new_node->target) - 1);
     new_node->target[sizeof(new_node->target) - 1] = '\0';
+    
 
-
-    // zero for now, might need to be changed.
     new_node->active        = 0;
     new_node->error_count   = 0;
     new_node->last_sync     = 0;
@@ -79,16 +69,30 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
 
 
 
-// sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid){
-//     if(head == NULL) return NULL;
-//     sync_info_mem_store *found = head;
 
-//     while(found != NULL && found->worker_pid != pid){
-//         found = found->next;
-//     }
+void find_sync_info_by_dir(sync_info_mem_store *head, const char* dir){
+    pthread_mutex_lock(&sync_info_mutex);
 
-//     return found;
-// }
+    if(head == NULL){
+        pthread_mutex_unlock(&sync_info_mutex);
+        return;
+    }
+    sync_info_mem_store *found = head;
+    
+    while(found != NULL){
+
+        if(strstr(found->source, dir) != NULL){
+            printf("found: %s\n", found->source);
+        }
+        
+        found = found->next;
+    }
+
+    pthread_mutex_unlock(&sync_info_mutex);
+    return;
+
+}
+
 
 
 int remove_sync_info(sync_info_mem_store** head, const char* source){
@@ -118,6 +122,7 @@ int remove_sync_info(sync_info_mem_store** head, const char* source){
     pthread_mutex_unlock(&sync_info_mutex);
     return 0;
 }
+
 
 
 

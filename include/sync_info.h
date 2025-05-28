@@ -17,10 +17,11 @@
 typedef struct sync_info_mem_store {
     char source[BUFFSIZ];
     char target[BUFFSIZ];
+
     atomic_long last_sync;
     atomic_int error_count;
-    atomic_int active;         
-    // int watch_fd;
+    atomic_int active;  
+           
     int report_fd;
     pid_t worker_pid;
     struct sync_info_mem_store* next;
@@ -32,9 +33,8 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
 int remove_sync_info(sync_info_mem_store** head, const char* source);
 void free_all_sync_info(sync_info_mem_store** head);
 sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid);
-
+void find_sync_info_by_dir(sync_info_mem_store *head, const char* dir);
 
 
 // void print_all_sync_info(sync_info_mem_store* head);
-// sync_info_mem_store* find_by_watch_fd(sync_info_mem_store* head, int wd);
 #endif
