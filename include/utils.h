@@ -43,7 +43,7 @@ long get_file_size_of_host(int sock);
 int get_files_from_list_response(char *list_reply_buff, char *file_buff[MAX_FILES]);
 int read_list_response(int sock, char **list_reply_buff);
 int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content);
-int parse_path_target(const char *full_path, char *dir_path, char *ip, int *port);
+int parse_path(const char *full_path, char *dir_path, char *ip, int *port);
 
 
 #endif

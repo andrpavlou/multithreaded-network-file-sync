@@ -204,7 +204,10 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         (*source_full_path) = strtok(temp, " ");  // Source path
         if((*source_full_path) == NULL) return 1;
 
-        parse_path_target((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        if(status == -1){
+            perror("parse path target");
+        }
         full_command->source_ip[BUFFSIZ - 1] = '\0';
 
         
@@ -212,7 +215,7 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         if((*target_full_path) == NULL) return 1;
 
         
-        parse_path_target((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
+        parse_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
         full_command->target_ip[BUFFSIZ - 1] = '\0';
 
         char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
@@ -232,7 +235,6 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 
     return 1;
 }
-
 
 
 
@@ -323,6 +325,57 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     return 0;
 }
 
+
+
+int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,const char* source_full_path){
+    int count = 0;
+    char **found_hosts  = find_sync_info_hosts_by_dir((*sync_info_head), curr_cmd.cancel_dir, &count);
+    if(!count) return 1;
+    
+    printf("\n--------------------\n");
+    for(int i = 0; i < count; i++){
+        int current_parsed_port = -1;
+        char current_parsed_ip[BUFFSIZ];
+
+        int status = parse_path(found_hosts[i], NULL, current_parsed_ip, &current_parsed_port);
+        if(status){
+            perror("parse path for cancel");
+            continue;
+        }
+
+        sync_task *new_task         = malloc(sizeof(sync_task));
+        new_task->manager_cmd.op    = curr_cmd.op;
+
+        ssize_t manager_buff_size   = sizeof(new_task->manager_cmd.cancel_dir);
+
+        // Copy cancelling dir
+        strncpy(new_task->manager_cmd.cancel_dir, curr_cmd.cancel_dir, manager_buff_size - 1);
+        new_task->manager_cmd.cancel_dir[manager_buff_size - 1] = '\0';
+
+        // Copy source ip of the cancelling dir
+        strncpy(new_task->manager_cmd.source_ip, current_parsed_ip, manager_buff_size - 1);
+        new_task->manager_cmd.source_ip[manager_buff_size - 1] = '\0';
+        
+        // Copy source port of the cancelling dir
+        new_task->manager_cmd.source_port = current_parsed_port ;
+
+        sync_info_mem_store *curr_cancel_dir_node = find_sync_info((*sync_info_head), found_hosts[i]);
+        new_task->node = curr_cancel_dir_node;
+
+        new_task->filename[0]               = '\0';
+        new_task->manager_cmd.target_ip[0]  = '\0';
+        new_task->manager_cmd.target_port   = -1;
+
+        enqueue_task(queue_tasks, new_task);
+        
+        free(found_hosts[i]);
+        fflush(stdout);
+    }
+    printf("\n--------------------\n");
+    fflush(stdout);
+
+    return 0;
+}
 
 
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
@@ -424,35 +477,24 @@ int main(int argc, char *argv[]){
         manager_command curr_cmd;
         if(parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)){
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
-            break;
+            continue;
         }
         
 
         if(curr_cmd.op == ADD){
-            enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
+            int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
+            if(status){
+                perror("enqueue add");
+            }
         }
 
         if(curr_cmd.op == CANCEL){
-            sync_task *new_task         = malloc(sizeof(sync_task));
-            new_task->manager_cmd.op    = curr_cmd.op;
-
-            ssize_t manager_buff_size   = sizeof(new_task->manager_cmd.cancel_dir);
-
-            strncpy(new_task->manager_cmd.cancel_dir, curr_cmd.cancel_dir, manager_buff_size - 1);
-            new_task->manager_cmd.cancel_dir[manager_buff_size - 1] = '\0';
-
-
-            find_sync_info_by_dir(sync_info_head, new_task->manager_cmd.cancel_dir);
-            // sync_info_mem_store *inserted_node = add_sync_info(&sync_info_head, source_full_path, target_full_path);
-            // if(inserted_node == NULL){
-            //     perror("sync info insert");    
-
-            //     free(new_task);
-            //     return 1;
-            // } 
-
-            // new_task->node = inserted_node;
-            // enqueue_task(&queue_tasks, new_task);
+            int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
+            if(status){
+                printf("\n----- Dir not Monitored ---------\n");
+                fflush(stdout);
+                continue;
+            }
         }
 
         if(curr_cmd.op == SHUTDOWN){
@@ -482,6 +524,15 @@ int main(int argc, char *argv[]){
 
 
 
+
+static const char* cmd_to_str(manager_command cmd){
+    if(cmd.op == ADD)       return "ADD";
+    if(cmd.op == CANCEL)    return "CANCEL";
+    
+    return "INVALID";
+}
+
+
 void print_queue(sync_task_ts *task){
     if(!task){
         printf("NULL task\n");
@@ -490,17 +541,25 @@ void print_queue(sync_task_ts *task){
     
 
     for(int i = 0; i < task->size; i++){
-        printf("--- Sync Task ---\n");
-        printf("Operation\t: %d\n", task->tasks_array[i]->manager_cmd.op);
+        printf("--------- Sync Task: %d ---------\n", i);
+        printf("Operation\t: %s\n", cmd_to_str(task->tasks_array[i]->manager_cmd));
 
         if(task->tasks_array[i]->manager_cmd.op == ADD){
             printf("Filename\t: %s\n", task->tasks_array[i]->filename );
+            
             printf("Source Dir\t: %s\n", task->tasks_array[i]->manager_cmd.source_dir);
             printf("Source IP\t: %s\n", task->tasks_array[i]->manager_cmd.source_ip);
             printf("Source Port\t: %d\n", task->tasks_array[i]->manager_cmd.source_port);
+            
             printf("Target Dir\t: %s\n", task->tasks_array[i]->manager_cmd.target_dir);
             printf("Target IP\t: %s\n", task->tasks_array[i]->manager_cmd.target_ip);
             printf("Target Port\t: %d\n", task->tasks_array[i]->manager_cmd.target_port);
+        }
+
+        if(task->tasks_array[i]->manager_cmd.op == CANCEL){
+            printf("Source Dir\t: %s\n", task->tasks_array[i]->manager_cmd.cancel_dir);
+            printf("Source IP\t: %s\n", task->tasks_array[i]->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", task->tasks_array[i]->manager_cmd.source_port);
         }
 
 

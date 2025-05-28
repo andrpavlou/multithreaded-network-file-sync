@@ -66,7 +66,7 @@ typedef struct {
     int target_port;
 
 
-    char cancel_dir[BUFFSIZ]; // TODO: might just need to seperate cancel/add cmd 
+    char cancel_dir[BUFFSIZ]; // TODO: just remove this and use source_dir
 } manager_command;
 
 

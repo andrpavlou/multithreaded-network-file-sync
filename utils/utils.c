@@ -83,7 +83,7 @@ int line_counter_of_file(int fd, int max_len){
 }
 
 
-int parse_path_target(const char *full_path, char *dir_path, char *ip, int *port){
+int parse_path(const char *full_path, char *dir_path, char *ip, int *port){
     // full_path example: /source1@127.0.0.1:2323
 
     // pointer -> @127.0.0.1:2323
@@ -138,13 +138,13 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
         conf_pairs[curr_line].target_full_path[BUFFSIZ - 1] = '\0';
         conf_pairs[curr_line].worker_pid = -1;
 
-        parse_path_target(conf_pairs[curr_line].source_full_path,
+        parse_path(conf_pairs[curr_line].source_full_path,
                   conf_pairs[curr_line].source_dir_path,
                   conf_pairs[curr_line].source_ip,
                   &conf_pairs[curr_line].source_port);
 
 
-        parse_path_target(conf_pairs[curr_line].target_full_path,
+        parse_path(conf_pairs[curr_line].target_full_path,
                   conf_pairs[curr_line].target_dir_path,
                   conf_pairs[curr_line].target_ip,
                   &conf_pairs[curr_line].target_port);

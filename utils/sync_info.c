@@ -70,27 +70,32 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
 
 
 
-void find_sync_info_by_dir(sync_info_mem_store *head, const char* dir){
+char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, int *dir_count){
     pthread_mutex_lock(&sync_info_mutex);
 
     if(head == NULL){
         pthread_mutex_unlock(&sync_info_mutex);
-        return;
+        return NULL;
     }
     sync_info_mem_store *found = head;
     
+    int count = 0;
+    char **found_hosts = NULL;
     while(found != NULL){
-
         if(strstr(found->source, dir) != NULL){
-            printf("found: %s\n", found->source);
+            found_hosts         = realloc(found_hosts, (count + 1) * sizeof(char*));
+            found_hosts[count]  = strdup(found->source);
+
+            count++;
         }
-        
+
         found = found->next;
     }
 
+    *dir_count = count;
     pthread_mutex_unlock(&sync_info_mutex);
-    return;
-
+    
+    return found_hosts;
 }
 
 

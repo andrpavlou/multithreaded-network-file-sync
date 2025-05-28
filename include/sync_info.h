@@ -33,8 +33,7 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
 int remove_sync_info(sync_info_mem_store** head, const char* source);
 void free_all_sync_info(sync_info_mem_store** head);
 sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid);
-void find_sync_info_by_dir(sync_info_mem_store *head, const char* dir);
-
+char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, int *cancel_dir_count);
 
 // void print_all_sync_info(sync_info_mem_store* head);
 #endif
