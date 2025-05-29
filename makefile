@@ -52,10 +52,10 @@ $(SYNC_TASK_OBJ): $(SYNC_TASK_SRC) | $(OBJDIR)
 
 client: $(CLIENT_BIN) 
 $(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) | $(BINDIR)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 
 manager: $(MANAGER_BIN) 
@@ -75,8 +75,11 @@ $(CONSOLE_OBJ): $(CONSOLE_SRC) | $(OBJDIR)
 
 
 clean:
+	@rm source2/*
+	@rm source3/*
+	@rm source4/*
+	@rm source5/*
 	@rm -rf obj bin
-
 
 
 .PHONY: all clean utils sync_info console manager 

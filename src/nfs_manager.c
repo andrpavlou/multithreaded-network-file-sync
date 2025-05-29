@@ -26,7 +26,9 @@ void handle_sigint(int sig){
 
 
 void *worker_thread(void *arg){
+    
     config_pairs* conf_pairs = (config_pairs*) arg;
+   
     int sock_source_read;
     if(establish_connection(&sock_source_read, conf_pairs->source_ip, conf_pairs->source_port)){
         perror("establish con");
@@ -524,10 +526,16 @@ int main(int argc, char *argv[]){
     // printf("\n exiting \n");
     
     ////// Thread workers for tasks
-    pthread_t worker_th;
-    pthread_create(&worker_th, NULL, worker_thread, &conf_pairs[0]);
-    pthread_join(worker_th, NULL);
+    pthread_t worker_th[4];
+    for(int i = 0; i < 4; i++){
+        pthread_create(&worker_th[i], NULL, worker_thread, &conf_pairs[i]);
+    }
+    for(int i = 0; i < 4; i++){
+        pthread_join(worker_th[i], NULL);
+    }
     
+
+    free(conf_pairs);
     // free_all_sync_info(&sync_info_head);
     free(queue_tasks.tasks_array);
 

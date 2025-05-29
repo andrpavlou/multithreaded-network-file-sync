@@ -1,6 +1,5 @@
 #include "nfs_client.h"
 
-
 /*
      socket()
         |
@@ -184,7 +183,7 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
             
             // Skip .. and .
             if(strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")){
-                printf("dir name: %s\n", dir->d_name);
+                // printf("dir name: %s\n", dir->d_name);
                 strncpy(filenames[file_count], dir->d_name, BUFFSIZ - 1);
                 filenames[file_count][BUFFSIZ - 1] = '\0';
 
@@ -318,6 +317,40 @@ void handle_sigint(int sig){
 }
 
 
+
+
+void* handle_connection(void* arg){
+    int newsock = *(int*)arg;
+    free(arg);
+
+    ssize_t n_read;
+    char read_buffer[BUFFSIZ];
+    memset(read_buffer, 0, sizeof(read_buffer));
+
+    while((n_read = read_line(newsock, read_buffer, sizeof(read_buffer))) > 0){
+        printf("Got line: [%s] Size [%ld]\n", read_buffer, n_read);
+        fflush(stdout);
+
+        client_command current_cmd_struct;
+        if(parse_manager_command(read_buffer, &current_cmd_struct)){
+            fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
+            break;
+        }
+
+        if(exec_command(current_cmd_struct, newsock)){
+            perror("exec command");
+            break;
+        }
+        memset(read_buffer, 0, sizeof(read_buffer));
+    }
+
+    close(newsock);
+    return NULL;
+}
+
+
+
+
 // lsof -i :port
 int main(int argc, char* argv[]){
     int port = 0;   
@@ -359,55 +392,33 @@ int main(int argc, char* argv[]){
     if(listen(sock, 5) < 0)
         perror (" listen ") ;
     
-    socklen_t clientlen;
     printf("Listening for connections to port % d \n", port);
-    int newsock = 0;
-    
+    socklen_t clientlen;
     while(client_active){
         clientlen = sizeof(struct sockaddr_in);
-        if((newsock = accept(sock, clientptr, &clientlen)) < 0){
+        int *newsock = malloc(sizeof(int));
+
+        if((*newsock = accept(sock, clientptr, &clientlen)) < 0){
             perror("accept ");
             continue;
         }
-
         printf("Accepted connection \n") ;
-        ssize_t n_read;
-        char read_buffer[BUFFSIZ];
-        memset(read_buffer, 0, sizeof(read_buffer));
-        while((n_read = read_line(newsock, read_buffer, sizeof(read_buffer))) > 0){
-            printf("Got line: [%s] Size [%ld]\n", read_buffer, n_read);
-            fflush(stdout);
 
-            client_command current_cmd_struct;
-            if(parse_manager_command(read_buffer, &current_cmd_struct)){
-                fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
-                break;
-            }
+        pthread_t client_th;
+        if(pthread_create(&client_th, NULL, handle_connection, newsock) != 0){
+            perror("pthread_create");
+            
+            close(*newsock);
+            free(newsock);
 
-
-            if(exec_command(current_cmd_struct, newsock)){
-                perror("exec command");
-                break;
-            }
-
-            // printf("Parsed Command: %s\n", cmd_to_str(current_cmd_struct.op));
-            // printf("Directory Path: %s\n", current_cmd_struct.path);
-
-            // if(current_cmd_struct.op == PUSH) {
-            //     printf("chunk size: %d\n", current_cmd_struct.chunk_size);
-            //     printf("Data: %s\n", current_cmd_struct.data);
-            // }
-
-            memset(read_buffer, 0, sizeof(read_buffer));
+            continue;
         }
 
-        
-        close(newsock);
+        pthread_detach(client_th);
     }
     close(sock);
 
     printf("Exiting\n");
-
     return 0;
 }
 
