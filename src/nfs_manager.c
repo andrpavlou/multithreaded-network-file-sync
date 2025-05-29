@@ -125,7 +125,6 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     char *file_buff[MAX_FILES];
     unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
-
     
     for(int i = 0; i < total_src_files; i++){
         sync_task *new_task         = malloc(sizeof(sync_task));
@@ -176,7 +175,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         new_task->node = inserted_node;
         enqueue_task(queue_tasks, new_task);
     }
-
+    
+    free(list_reply_buff);
     close(sock_source_read);
     return 0;
 }
