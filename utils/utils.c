@@ -321,7 +321,7 @@ int read_list_response(int sock, char **list_reply_buff){
 
         total_read_list += n_read;
         (*list_reply_buff)[total_read_list] = '\0';
-    } while(strstr((*list_reply_buff), ".\nACK\n") == NULL); // Keep reading until we receive '.\nACK\n'
+    } while(strstr((*list_reply_buff), "\n.") == NULL); // Keep reading until we receive '.\nACK\n'
 
     return 0;
 }
@@ -360,19 +360,6 @@ long get_file_size_of_host(int sock){
 
     return file_size;
 }   
-
-int receive_ack(int sock){
-    char ack[8] = {0};
-    
-    int ack_read = read(sock, ack, sizeof(ack) - 1);
-    if(ack_read <= 0 || strncmp(ack, "ACK", 3)){
-        fprintf(stderr, "No ACK REC: [%s]\n", ack);
-        return 1;
-    }
-    
-    return 0;
-}
-
 
 
 
