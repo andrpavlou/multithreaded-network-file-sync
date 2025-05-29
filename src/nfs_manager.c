@@ -308,7 +308,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
         // Check if the source full path is already inserted and keep that node, otherwise just insert it
         sync_info_mem_store *find_node;
-        if((find_node = find_sync_info((*sync_info_head), source_full_path)) != NULL){
+        if((find_node = find_sync_info((*sync_info_head), source_full_path, target_full_path)) != NULL){
             new_task->node = find_node;
             enqueue_task(queue_tasks, new_task);
 
@@ -349,9 +349,9 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
             perror("parse path for cancel");
             continue;
         }
-
+        // printf("full path:\t%s\nip:\t\t%s\nport:\t\t%d\n", found_hosts[i], current_parsed_ip, current_parsed_port);
         sync_task *new_task         = malloc(sizeof(sync_task));
-        new_task->manager_cmd.op    = curr_cmd.op;
+        new_task->manager_cmd.op    = CANCEL;
 
         ssize_t manager_buff_size   = sizeof(new_task->manager_cmd.cancel_dir);
 
@@ -366,7 +366,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
         // Copy source port of the cancelling dir
         new_task->manager_cmd.source_port = current_parsed_port ;
 
-        sync_info_mem_store *curr_cancel_dir_node = find_sync_info((*sync_info_head), found_hosts[i]);
+        sync_info_mem_store *curr_cancel_dir_node = find_sync_info((*sync_info_head), found_hosts[i], NULL);
         new_task->node = curr_cancel_dir_node;
 
         new_task->filename[0]               = '\0';
@@ -391,8 +391,15 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 
 
 void *thread_exec_task(void *arg){
-    sync_task_ts *queue_tasks   = (sync_task_ts*)  arg;
+    sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
     sync_task *curr_task        = dequeue_task(queue_tasks);
+
+    if(curr_task->manager_cmd.op == CANCEL){
+        printf("\n\n\nTHREAD CANCELLING:\n");
+        
+        free(curr_task);
+        return NULL;
+    }
 
     if(curr_task->manager_cmd.op == ADD){
         int sock_source_read;
@@ -461,7 +468,6 @@ void *thread_exec_task(void *arg){
                 break;
             }
             
-
             /*
             * Send -1 batch size to create the file if it's the first write,
             * otherwise send the bytes read from other host -> request_bytes
@@ -504,7 +510,8 @@ void *thread_exec_task(void *arg){
         }
         close(sock_target_push);
     }
-
+    
+    free(curr_task);
     return NULL;
 }
 
@@ -585,7 +592,7 @@ int main(int argc, char *argv[]){
     }
 
     free(conf_pairs);
-    pthread_t worker_th[6];
+    pthread_t worker_th[3];
     for(int i = 0; i < 6; i++){
         pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
     }
@@ -593,8 +600,8 @@ int main(int argc, char *argv[]){
         pthread_join(worker_th[i], NULL);
     }
 
-
-    print_queue(&queue_tasks);
+    print_all_sync_info(sync_info_head);
+    // goto end;
 
 
     struct sockaddr_in server, client;
@@ -654,6 +661,7 @@ int main(int argc, char *argv[]){
         
 
         if(curr_cmd.op == ADD){
+            printf("ADD\n");
             int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
             if(status){
                 perror("enqueue add");
@@ -661,12 +669,15 @@ int main(int argc, char *argv[]){
         }
 
         if(curr_cmd.op == CANCEL){
+            // printf("\nCANCEL\n");
             int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
             if(status){
                 printf("\n----- Dir not Monitored ---------\n");
+                
                 fflush(stdout);
                 continue;
             }
+            // print_queue(&queue_tasks);
         }
 
         if(curr_cmd.op == SHUTDOWN){
@@ -690,7 +701,9 @@ int main(int argc, char *argv[]){
             //     pthread_join(worker_th[i], NULL);
             // }
             
-    
+
+    print_queue(&queue_tasks);
+
     close(socket_manager);
     close(socket_console_read);
     free(queue_tasks.tasks_array);
@@ -711,46 +724,41 @@ static const char* cmd_to_str(manager_command cmd){
 }
 
 
-void print_queue(sync_task_ts *task){
+void print_queue(sync_task_ts *task) {
     if(!task){
         printf("NULL task\n");
         return;
     }
-    
 
     for(int i = 0; i < task->size; i++){
-        printf("--------- Sync Task: %d ---------\n", i);
-        printf("Operation\t: %s\n", cmd_to_str(task->tasks_array[i]->manager_cmd));
+        int index = (task->head + i) % task->buffer_slots;
+        sync_task *curr_task = task->tasks_array[index];
 
-        if(task->tasks_array[i]->manager_cmd.op == ADD){
-            printf("Filename\t: %s\n", task->tasks_array[i]->filename );
-            
-            printf("Source Dir\t: %s\n", task->tasks_array[i]->manager_cmd.source_dir);
-            printf("Source IP\t: %s\n", task->tasks_array[i]->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", task->tasks_array[i]->manager_cmd.source_port);
-            
-            printf("Target Dir\t: %s\n", task->tasks_array[i]->manager_cmd.target_dir);
-            printf("Target IP\t: %s\n", task->tasks_array[i]->manager_cmd.target_ip);
-            printf("Target Port\t: %d\n", task->tasks_array[i]->manager_cmd.target_port);
-        }
-
-        if(task->tasks_array[i]->manager_cmd.op == CANCEL){
-            printf("Source Dir\t: %s\n", task->tasks_array[i]->manager_cmd.cancel_dir);
-            printf("Source IP\t: %s\n", task->tasks_array[i]->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", task->tasks_array[i]->manager_cmd.source_port);
+        printf("Operation\t: %s\n", cmd_to_str(curr_task->manager_cmd));
+        if(curr_task->manager_cmd.op == ADD){
+            printf("Filename\t: %s\n", curr_task->filename);
+            printf("Source Dir\t: %s\n", curr_task->manager_cmd.source_dir);
+            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
+            printf("Target Dir\t: %s\n", curr_task->manager_cmd.target_dir);
+            printf("Target IP\t: %s\n", curr_task->manager_cmd.target_ip);
+            printf("Target Port\t: %d\n", curr_task->manager_cmd.target_port);
         }
 
 
-        if(task->tasks_array[i]->node){
+        if(curr_task->manager_cmd.op == CANCEL){
+            printf("Source Dir\t: %s\n", curr_task->manager_cmd.cancel_dir);
+            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
+        }
+
+        if(curr_task->node){
             printf("Sync Info:\n");
-            printf("  Source\t: %s\n", task->tasks_array[i]->node->source);
-            printf("  Target\t: %s\n", task->tasks_array[i]->node->target);
+            printf("  Source\t: %s\n", curr_task->node->source);
+            printf("  Target\t: %s\n", curr_task->node->target);
         } else {
             printf("Sync Info: NULL\n");
         }
-
         printf("----------------------------------\n");
     }
-
-    
 }

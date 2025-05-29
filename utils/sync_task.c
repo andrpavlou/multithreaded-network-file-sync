@@ -29,6 +29,8 @@ void enqueue_task(sync_task_ts *queue, sync_task *newtask){
         pthread_cond_wait(&queue->not_full, &queue->mutex);
     }
 
+
+
     queue->tasks_array[queue->tail] = newtask;
     queue->tail = (queue->tail + 1) % queue->buffer_slots;
     queue->size++;
@@ -46,6 +48,9 @@ sync_task* dequeue_task(sync_task_ts *queue){
     }
 
     sync_task *task = queue->tasks_array[queue->head];
+    
+
+
     queue->head = (queue->head + 1) % queue->buffer_slots;
     queue->size--;
 

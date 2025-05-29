@@ -75,11 +75,11 @@ $(CONSOLE_OBJ): $(CONSOLE_SRC) | $(OBJDIR)
 
 
 clean:
+	@rm -rf obj bin
 	@rm source2/*
 	@rm source3/*
 	@rm source4/*
 	@rm source5/*
-	@rm -rf obj bin
 
 
 .PHONY: all clean utils sync_info console manager 

@@ -4,6 +4,21 @@
 
 pthread_mutex_t sync_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void print_all_sync_info(sync_info_mem_store* head){
+    if(head == NULL){
+        printf("No monitored directories.\n");
+        return;
+    }
+
+    sync_info_mem_store* curr = head;
+    while(curr != NULL){
+        printf("Source Path:%s -> Target Path:%s\n",  curr->source, curr->target);
+        curr = curr->next;
+    }
+}
+
+
+
 
 sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* source, const char* target){
     pthread_mutex_lock(&sync_info_mutex);
@@ -29,7 +44,6 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
     new_node->last_sync     = 0;
     new_node->worker_pid    = -1;
     new_node->last_sync     = 0;
-    // new_node->watch_fd      = -1;
     new_node->next          = NULL;
 
     if(*head == NULL){
@@ -50,7 +64,7 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
 }
 
 
-sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source){
+sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source, const char* target){
     pthread_mutex_lock(&sync_info_mutex);
 
     if(head == NULL){
@@ -59,7 +73,16 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
     }
     sync_info_mem_store *found = head;
     
-    while(found != NULL && strcmp(found->source, source)){
+    if(target == NULL){
+        // For cancel command we dont care about the target
+        while(found != NULL && strcmp(found->source, source)){
+            found = found->next;
+        }
+        pthread_mutex_unlock(&sync_info_mutex);
+        return found;
+    }
+
+    while(found != NULL && (strcmp(found->source, source) || strcmp(found->target, target))){
         found = found->next;
     }
 
@@ -67,9 +90,7 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
     return found;
 }
 
-
-
-
+// distinct only
 char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, int *dir_count){
     pthread_mutex_lock(&sync_info_mutex);
 
@@ -83,10 +104,20 @@ char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, i
     char **found_hosts = NULL;
     while(found != NULL){
         if(strstr(found->source, dir) != NULL){
-            found_hosts         = realloc(found_hosts, (count + 1) * sizeof(char*));
-            found_hosts[count]  = strdup(found->source);
+            
+            int duplicate = 0;
+            for(int i = 0; i < count; i++){
+                if(!strcmp(found_hosts[i], found->source)){
+                    duplicate = 1;
+                    break;
+                }
+            }
+            if(!duplicate){
+                count++;
 
-            count++;
+                found_hosts         = realloc(found_hosts, (count + 1) * sizeof(char*));
+                found_hosts[count]  = strdup(found->source);
+            }
         }
 
         found = found->next;
@@ -127,7 +158,6 @@ int remove_sync_info(sync_info_mem_store** head, const char* source){
     pthread_mutex_unlock(&sync_info_mutex);
     return 0;
 }
-
 
 
 

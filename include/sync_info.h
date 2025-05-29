@@ -29,11 +29,11 @@ typedef struct sync_info_mem_store {
 
 
 sync_info_mem_store* add_sync_info(sync_info_mem_store** head, const char* source, const char* target);
-sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source);
+sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* source, const char* target);
 int remove_sync_info(sync_info_mem_store** head, const char* source);
 void free_all_sync_info(sync_info_mem_store** head);
 sync_info_mem_store* find_by_pid(sync_info_mem_store *head, pid_t pid);
 char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, int *cancel_dir_count);
 
-// void print_all_sync_info(sync_info_mem_store* head);
+void print_all_sync_info(sync_info_mem_store* head);
 #endif
