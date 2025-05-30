@@ -10,6 +10,7 @@ UTILSDIR	= utils
 CLIENT_SRC 		= $(SRCDIR)/nfs_client.c
 MANAGER_SRC 	= $(SRCDIR)/nfs_manager.c
 CONSOLE_SRC 	= $(SRCDIR)/nfs_console.c
+ADD_CMD_SRC 	= $(SRCDIR)/add_cmd.c
 UTILS_SRC 		= $(UTILSDIR)/utils.c
 SYNC_INFO_SRC	= $(UTILSDIR)/sync_info.c
 SYNC_TASK_SRC	= $(UTILSDIR)/sync_task.c
@@ -21,6 +22,7 @@ CONSOLE_OBJ 	= $(OBJDIR)/nfs_console.o
 UTILS_OBJ 		= $(OBJDIR)/utils.o
 SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info.o
 SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task.o
+ADD_CMD_OBJ 	= $(OBJDIR)/add_cmd.o
 
 
 CLIENT_BIN 	= $(BINDIR)/nfs_client
@@ -49,6 +51,11 @@ $(SYNC_TASK_OBJ): $(SYNC_TASK_SRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
+add_cmd: $(ADD_CMD_OBJ)
+$(ADD_CMD_OBJ): $(ADD_CMD_SRC) $(UTILS_OBJ) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
 
 client: $(CLIENT_BIN) 
 $(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) | $(BINDIR)
@@ -59,7 +66,7 @@ $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
 
 
 manager: $(MANAGER_BIN) 
-$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) | $(BINDIR)
+$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ) $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(ADD_CMD_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)

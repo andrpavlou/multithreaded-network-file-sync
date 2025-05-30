@@ -1,4 +1,8 @@
 #include "add_cmd.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
     const char* source_full_path, const char *target_full_path){
@@ -156,6 +160,24 @@ int send_push_header_generic(int sock_target_push, bool *is_first_push, int requ
     if(send_header(sock_target_push, *is_first_push, request_bytes, target_dir, filename)){
         return 1;
     }
+
+    return 0;
+}
+
+
+
+
+// No need to close() after this fails
+int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_push, const sync_task *task){
+    if(establish_connection(sock_source_read, task->manager_cmd.source_ip, task->manager_cmd.source_port)){
+        perror("establish con source");
+        return 1;
+    }
+    
+    if(establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)){
+        perror("establish con target");
+        return 1;
+    }  
 
     return 0;
 }

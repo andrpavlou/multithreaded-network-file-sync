@@ -2,7 +2,8 @@
 #define UTILS_H
 
 #include "common_defs.h"
-#include "common.h"
+#include <sys/types.h>
+
 
 typedef struct {
     char source_full_path[BUFFSIZ];

@@ -1,15 +1,11 @@
 #ifndef SYNC_INFO_H
 #define SYNC_INFO_H
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#include <stdatomic.h>
+
 
 #include "common_defs.h"
+#include <stdatomic.h>
+#include <pthread.h>
 
 
 
