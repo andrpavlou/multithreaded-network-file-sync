@@ -175,12 +175,11 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         new_task->node = inserted_node;
         enqueue_task(queue_tasks, new_task);
     }
-    
+
     free(list_reply_buff);
     close(sock_source_read);
     return 0;
 }
-
 
 
 int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,const char* source_full_path){
@@ -247,9 +246,46 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 } while (0)
 
 
+int send_last_push_chunk(int sock_target_push, const char* filename, const char* target_dir){
+    // Request_bytes = 0 -> just send push request with chunk size = 0 indicating the last push
+    char push_buffer[BUFFSIZ];
+    int push_len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/%s %d\r\n", 
+                                        target_dir,
+                                        filename,
+                                        0);
+    if(write_all(sock_target_push, push_buffer, push_len) == -1){
+        return 1;
+    }
+
+    return 0;
+}
+
+
+/*
+* Send -1 batch size to create the file if it's the first write,
+* otherwise send the bytes read from other host -> request_bytes
+*/
+int send_header_push_cmd(int sock_target_push, int first_push_write, int request_bytes, const char *target_dir, const char *filename){
+    char push_header_buffer[BUFFSIZ];
+    int write_batch_bytes   = first_push_write == 0 ? -1 : request_bytes; 
+    int push_header_len     = snprintf(push_header_buffer, sizeof(push_header_buffer), "PUSH %s/%s %d\r\n", 
+                                    target_dir,
+                                    filename,
+                                    write_batch_bytes);
+    
+    if(write_all(sock_target_push, push_header_buffer, push_header_len) == -1){
+        perror("write push");
+
+        return 1;
+    }
+
+    return 0;
+}
+
+
+
 void *thread_exec_task(void *arg){
     sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
-    
     
     while(manager_active || queue_tasks->size){
         sync_task *curr_task = dequeue_task(queue_tasks);
@@ -259,8 +295,9 @@ void *thread_exec_task(void *arg){
         }
 
         if(curr_task->manager_cmd.op == SHUTDOWN){
-            free(curr_task);
             printf("Thread %lu shutting down\n", pthread_self());
+            
+            free(curr_task);
             break;
         }
 
@@ -291,10 +328,8 @@ void *thread_exec_task(void *arg){
             
             
             char pull_buffer[BUFFSIZ];
-            char push_buffer[BUFFSIZ];
             char pull_request_cmd_buff[BUFFSIZ];
             memset(pull_buffer, 0, sizeof(pull_buffer));
-            memset(push_buffer, 0, sizeof(push_buffer));
             memset(pull_request_cmd_buff, 0, sizeof(pull_request_cmd_buff));
 
             int len_pull_req = snprintf(pull_request_cmd_buff, sizeof(pull_request_cmd_buff), 
@@ -327,89 +362,51 @@ void *thread_exec_task(void *arg){
                                         : BUFFSIZ - 1;
     
     
-                // Request_bytes = 0 -> just send push request with chunk size = 0 indicating the last push
                 if(!request_bytes){
-                    int push_len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/%s %d\r\n", 
-                                        curr_task->manager_cmd.target_dir,
-                                        curr_task->filename,
-                                        0);
-    
-                    if(write_all(sock_target_push, push_buffer, push_len) == -1){
-                        perror("write all req byte = 0");
-
-                        CLOSE_SOCKETS(sock_target_push, sock_source_read);
-                        break;
+                    if(send_last_push_chunk(sock_target_push, curr_task->filename, curr_task->manager_cmd.target_dir)){
+                        perror("send_last_push_chunk");
                     }
 
                     CLOSE_SOCKETS(sock_target_push, sock_source_read);
                     break;
                 }
-                
+
+
                 ssize_t n_read;
                 if((n_read = read_all(sock_source_read, pull_buffer, request_bytes)) <= 0){
                     perror("\nread pull_buffer");
-                    
                  
                     CLEANUP(sock_target_push, sock_source_read, curr_task);
                     continue;
                 }
-                
-                /*
-                * Send -1 batch size to create the file if it's the first write,
-                * otherwise send the bytes read from other host -> request_bytes
-                */
-                char push_header_buffer[BUFFSIZ];
-                int write_batch_bytes = first_push_write == 0 ? -1 : request_bytes; 
-                int push_header_len = snprintf(push_header_buffer, sizeof(push_header_buffer), "PUSH %s/%s %d\r\n", 
-                                    curr_task->manager_cmd.target_dir,
-                                    curr_task->filename,
-                                    write_batch_bytes);
-    
-                if(write_all(sock_target_push, push_header_buffer, push_header_len) == -1){
-                    perror("write push");
+            
+                if(send_header_push_cmd(sock_target_push, first_push_write, request_bytes, curr_task->manager_cmd.target_dir, curr_task->filename)){
                     
                     CLEANUP(sock_target_push, sock_source_read, curr_task);
                     continue;
                 }
+
                 if(!first_push_write){
-                    push_header_len = snprintf(push_header_buffer, sizeof(push_header_buffer), "PUSH %s/%s %ld\r\n", 
-                                        curr_task->manager_cmd.target_dir,
-                                        curr_task->filename,
-                                        request_bytes);
-    
-    
-                    if(write_all(sock_target_push, push_header_buffer, push_header_len) == -1){
-                        perror("write push");
+                    first_push_write = 1;
+                    if(send_header_push_cmd(sock_target_push, first_push_write, request_bytes, curr_task->manager_cmd.target_dir, curr_task->filename)){
                         
-                        CLEANUP(sock_target_push, sock_source_read, curr_task);
-                        continue;
-
-                    }
-                    if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
-                        perror("write push");
-
-                        CLEANUP(sock_target_push, sock_source_read, curr_task);
-                        continue;
-                    }
-    
-                } else {
-                    if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
-                        perror("write push");
-
                         CLEANUP(sock_target_push, sock_source_read, curr_task);
                         continue;
                     }
                 }
-    
-                first_push_write = 1;
-                total_read_pull_req += n_read;
-    
+                
+                if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
+                    perror("write push");
+
+                    CLEANUP(sock_target_push, sock_source_read, curr_task);
+                    continue;
+                }
+                
                 memset(pull_buffer, 0, sizeof(pull_buffer)); 
-                memset(push_buffer, 0, sizeof(push_buffer)); 
+                total_read_pull_req += n_read;
             }
-            close(sock_target_push);
-            close(sock_source_read);
-            free(curr_task);
+
+            CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         
     }

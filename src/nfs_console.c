@@ -33,8 +33,10 @@ int main(int argc, char* argv[]){
     }
 
 
-    printf("Give input: ");
+    
     while(console_active){
+        printf(">");
+        fflush(stdout);
         char console_buffer[BUFFSIZ];
         
         ssize_t read_b = read(0, console_buffer, BUFFSIZ - 1);
