@@ -35,7 +35,7 @@ int main(int argc, char* argv[]){
 
     
     while(console_active){
-        printf(">");
+        printf("> ");
         fflush(stdout);
         char console_buffer[BUFFSIZ];
         

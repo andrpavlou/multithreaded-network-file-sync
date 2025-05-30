@@ -30,6 +30,7 @@ typedef struct {
 int init_sync_task_ts(sync_task_ts *queue, const int buffer_slots);
 void enqueue_task(sync_task_ts *queue, sync_task *newtask);
 sync_task* dequeue_task(sync_task_ts *queue);
+bool task_exists(sync_task_ts *queue, const char* file, manager_command curr_cmd);
 void free_queue_task(sync_task_ts *queue);
 
 /////////////////////////////////

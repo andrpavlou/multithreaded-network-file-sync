@@ -107,13 +107,16 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 
 
 
-int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,const char* source_full_path){
-    int count = 0;
-    char **found_hosts  = find_sync_info_hosts_by_dir((*sync_info_head), curr_cmd.cancel_dir, &count);
-    if(!count) return 1;
+int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head, 
+    const char* source_full_path){
+
+    int host_count = 0;
+    char **found_hosts  = find_sync_info_hosts_by_dir((*sync_info_head), curr_cmd.cancel_dir, &host_count);
+    if(!host_count) return 1;
     
+
     printf("\n--------------------\n");
-    for(int i = 0; i < count; i++){
+    for(int i = 0; i < host_count; i++){
         int current_parsed_port = -1;
         char current_parsed_ip[BUFFSIZ];
 
@@ -122,7 +125,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
             perror("parse path for cancel");
             continue;
         }
-        // printf("full path:\t%s\nip:\t\t%s\nport:\t\t%d\n", found_hosts[i], current_parsed_ip, current_parsed_port);
+        
         sync_task *new_task         = malloc(sizeof(sync_task));
         new_task->manager_cmd.op    = CANCEL;
 
@@ -145,7 +148,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
         new_task->filename[0]               = '\0';
         new_task->manager_cmd.target_ip[0]  = '\0';
         new_task->manager_cmd.target_port   = -1;
-
+        
         enqueue_task(queue_tasks, new_task);
         
         free(found_hosts[i]);
@@ -315,39 +318,6 @@ int main(int argc, char *argv[]){
 
 
     sync_info_mem_store *sync_info_head = NULL;
-    for(int i = 0; i < total_config_pairs; i++){
-        manager_command conf_cmd;
-        conf_cmd.op = ADD;
-
-        strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
-        conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
-
-        strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
-        conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
-
-        conf_cmd.source_port = conf_pairs[i].source_port;
-
-        strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
-        conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
-
-        strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
-        conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
-
-        conf_cmd.target_port = conf_pairs[i].target_port;
-
-
-        int status = enqueue_add_cmd(conf_cmd, &queue_tasks, &sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path);
-        if(status){
-            perror("enqueue add");
-        }
-    }
-
-    free(conf_pairs);
-    pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
-    for(int i = 0; i < worker_limit; i++){
-        pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
-    }
-
 
 
     struct sockaddr_in server, client;
@@ -383,9 +353,49 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+    atomic_int conf_pairs_sync = 0;
+
+    // pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
+    // for(int i = 0; i < worker_limit; i++){
+    //     pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
+    // }
+
+
+    if(!conf_pairs_sync){
+        for(int i = 0; i < total_config_pairs; i++){
+            manager_command conf_cmd;
+            conf_cmd.op = ADD;
+    
+            strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
+            conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
+    
+            strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
+            conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
+    
+            conf_cmd.source_port = conf_pairs[i].source_port;
+    
+            strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
+            conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
+    
+            strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
+            conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
+    
+            conf_cmd.target_port = conf_pairs[i].target_port;
+    
+    
+            int status = enqueue_add_cmd(conf_cmd, &queue_tasks, &sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path);
+            if(status){
+                perror("enqueue add");
+            }
+        }
+        conf_pairs_sync = 1;
+    }
+    
+
 
     printf("Accepted connection \n") ;
     while(manager_active){
+
         char read_buffer[BUFFSIZ];
         memset(read_buffer, 0, sizeof(read_buffer));
         
@@ -404,7 +414,6 @@ int main(int argc, char *argv[]){
         }
 
         if(curr_cmd.op == ADD){
-            printf("ADD\n");
             int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
             if(status){
                 perror("enqueue add");
@@ -423,35 +432,36 @@ int main(int argc, char *argv[]){
 
         if(curr_cmd.op == SHUTDOWN){
             manager_active = 0;
-
             continue;
         }
 
     }
 
-    for(int i = 0; i < worker_limit; i++){
-        sync_task *shutdown_task = malloc(sizeof(sync_task));
-        shutdown_task->manager_cmd.op = SHUTDOWN;
+    // for(int i = 0; i < worker_limit; i++){
+    //     sync_task *shutdown_task = malloc(sizeof(sync_task));
+    //     shutdown_task->manager_cmd.op = SHUTDOWN;
     
-        shutdown_task->node                         = NULL;
-        shutdown_task->filename[0]                  = '\0';
-        shutdown_task->manager_cmd.full_path[0]     = '\0';
-        shutdown_task->manager_cmd.source_ip[0]     = '\0';
-        shutdown_task->manager_cmd.target_ip[0]     = '\0';
-        shutdown_task->manager_cmd.source_dir[0]    = '\0';
-        shutdown_task->manager_cmd.target_dir[0]    = '\0';
-        shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
+    //     shutdown_task->node                         = NULL;
+    //     shutdown_task->filename[0]                  = '\0';
+    //     shutdown_task->manager_cmd.full_path[0]     = '\0';
+    //     shutdown_task->manager_cmd.source_ip[0]     = '\0';
+    //     shutdown_task->manager_cmd.target_ip[0]     = '\0';
+    //     shutdown_task->manager_cmd.source_dir[0]    = '\0';
+    //     shutdown_task->manager_cmd.target_dir[0]    = '\0';
+    //     shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
 
-        enqueue_task(&queue_tasks, shutdown_task);
-    }
+    //     enqueue_task(&queue_tasks, shutdown_task);
+    // }
 
     printf("\n exiting \n");
-    for(int i = 0; i < worker_limit; i++){
-        pthread_join(worker_th[i], NULL);
-    }
+    // for(int i = 0; i < worker_limit; i++){
+    //     pthread_join(worker_th[i], NULL);
+    // }
     
-    
-    free(worker_th);
+
+
+    free(conf_pairs);
+    // free(worker_th);
     close(socket_manager);
     close(socket_console_read);
     free(queue_tasks.tasks_array);

@@ -6,6 +6,7 @@
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
     const char* source_full_path, const char *target_full_path){
+    
 
     int sock_source_read;
     if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
@@ -19,6 +20,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     // //========== Request List Command ========== //
     if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
+        close(sock_source_read);
         perror("list write");
         return 1;
     }
@@ -30,7 +32,14 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     char *file_buff[MAX_FILES];
     unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
     
+
     for(int i = 0; i < total_src_files; i++){
+        if(task_exists(queue_tasks, file_buff[i], curr_cmd) == TRUE){
+            printf("DIR ALREADY MONITORED......."); // proper logging
+            continue;
+        }
+
+
         sync_task *new_task         = malloc(sizeof(sync_task));
         new_task->manager_cmd.op    = curr_cmd.op;
 
