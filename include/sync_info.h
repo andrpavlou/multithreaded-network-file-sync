@@ -9,8 +9,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 
-#define BUFFSIZ 256
-#define BUFFSIZ_CHARS 3
+#include "common_defs.h"
 
 
 

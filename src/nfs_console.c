@@ -1,11 +1,10 @@
-#include "nfs_console.h"
-#include "nfs_manager.h"
+#include "utils.h"
+
 
 volatile sig_atomic_t console_active = 1;
 void handle_sigint(int sig){
     console_active = 0;
 }
-
 
 
 

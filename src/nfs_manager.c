@@ -1,7 +1,10 @@
-#include "nfs_manager.h"
 #include "utils.h"
 #include "sync_task.h"
 #include "sync_info.h"
+#include "nfs_manager_def.h"
+#include "common.h"
+#include "common_defs.h"
+
 
 // TODO: IF A FILE IS EMPTY ON SOURCE IT DOESNT CREATE IT
 

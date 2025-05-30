@@ -2,11 +2,7 @@
 #define SYNC_TASK_H
 
 #include "sync_info.h"
-#include "nfs_client.h"
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-
+#include "nfs_manager_def.h"
 
 typedef struct {
     char filename[BUFFSIZ];   

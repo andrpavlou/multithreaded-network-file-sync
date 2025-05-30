@@ -22,5 +22,10 @@
 #define MIN(size1, size2) ((size1) < (size2) ? (size1) : (size2))
 
 
+typedef enum { 
+    FALSE, 
+    TRUE
+} bool;
+
 
 #endif

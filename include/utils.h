@@ -1,14 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include "nfs_manager.h"
-#include <string.h>
-#include <unistd.h>
-#include <stdio.h>     
-#include <unistd.h>    
-#include <sys/types.h> 
-#include <sys/stat.h>  
-#include <stdio.h>
+#include "common_defs.h"
+#include "common.h"
 
 typedef struct {
     char source_full_path[BUFFSIZ];

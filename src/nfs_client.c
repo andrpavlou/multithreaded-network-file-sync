@@ -1,4 +1,9 @@
-#include "nfs_client.h"
+#define _GNU_SOURCE
+
+#include "utils.h"
+#include "common.h"
+#include "common_defs.h"
+#include "nfs_client_def.h"
 
 /*
      socket()

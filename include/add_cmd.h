@@ -8,11 +8,6 @@
 #include "utils.h"
 
 
-typedef enum { 
-    FALSE, 
-    TRUE
-} bool;
-
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
     const char* source_full_path, const char *target_full_path);
