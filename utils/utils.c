@@ -225,7 +225,7 @@ int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, i
 
 
 //////////// TODO: CREATE MORE MODULES FOR THESE
-
+// Handles the errors -> no need for closing the socket after error
 int establish_connection(int *sock, const char *ip, const int port){
     struct sockaddr_in servadd; /* The address of server */
     struct hostent *hp;         /* to resolve server ip */
@@ -237,6 +237,7 @@ int establish_connection(int *sock, const char *ip, const int port){
     
     if((hp = gethostbyname(ip)) == NULL){
         perror("gethostbyname"); 
+        close(*sock);
         return 1;
     }
 
@@ -246,6 +247,7 @@ int establish_connection(int *sock, const char *ip, const int port){
 
     if(connect(*sock, (struct sockaddr*) &servadd, sizeof(servadd)) != 0){
         perror("connect");
+        close(*sock);
         return 1;
     }
     return 0;
