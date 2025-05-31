@@ -47,7 +47,7 @@ struct linux_dirent64 {
     do {                                        \
         if((read_b) == 0){                      \
             buffer[total_read] = '\0';          \
-            return total_read;                 \
+            return total_read;                  \
         }                                       \
         if((read_b) < 0) return -1;             \
     }while(0) 
@@ -272,19 +272,19 @@ int exec_command(client_command cmd, int newsock){
 
     if(!cmd.chunk_size && cmd.op == PUSH) return 0; // final chunk, nothing to write
 
-
     // just create the file if chunk size is -1
     if(cmd.op == PUSH && cmd.chunk_size == -1){
         int fd_file_write = open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666);
         
+        printf("FILENAME: %s\n", cmd.path);
         if(fd_file_write == -1){
             perror("push open\n");
             return 1;
         }
-        if(write(fd_file_write, cmd.data, 0) < 0){
-            perror("Invalid written bytes");
-            return 1;
-        }
+        // if(write(fd_file_write, cmd.data, 0) < 0){
+        //     perror("Invalid written bytes");
+        //     return 1;
+        // }
         close(fd_file_write);
         return 0;
     }
@@ -313,7 +313,8 @@ int exec_command(client_command cmd, int newsock){
         close(fd_file_write);
         return  0;
     }
-
+    
+    // Invalid command
     return 1;
 }
 
@@ -383,12 +384,12 @@ int main(int argc, char* argv[]){
     int optval = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-    server.sin_family = AF_INET ; /* Internet domain */
-    server.sin_addr.s_addr = htonl(INADDR_ANY);
-    server.sin_port = htons(port) ; /* The given port */
+    server.sin_family       = AF_INET ; /* Internet domain */
+    server.sin_addr.s_addr  = htonl(INADDR_ANY);
+    server.sin_port         = htons(port) ; /* The given port */
+    
+    
     /* Bind socket to address */
-
-
     if(bind(sock, serverptr, sizeof(server)) < 0){
         perror("bind");
         exit(1);
@@ -415,7 +416,6 @@ int main(int argc, char* argv[]){
             
             close(*newsock);
             free(newsock);
-
             continue;
         }
 

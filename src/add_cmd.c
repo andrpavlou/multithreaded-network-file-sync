@@ -35,7 +35,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     for(int i = 0; i < total_src_files; i++){
         if(task_exists(queue_tasks, file_buff[i], curr_cmd) == TRUE){
-            printf("DIR ALREADY MONITORED......."); // proper logging
+            printf("DIR ALREADY MONITORED.......\n"); // proper logging
+            fflush(stdout);
             continue;
         }
 

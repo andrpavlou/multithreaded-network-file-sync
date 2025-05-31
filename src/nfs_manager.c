@@ -7,8 +7,6 @@
 #include "add_cmd.h"
 
 
-// TODO: IF A FILE IS EMPTY ON SOURCE IT DOESNT CREATE IT
-
 
 /*
   socket()
@@ -191,6 +189,7 @@ void *thread_exec_task(void *arg){
             int sock_source_read;
             int sock_target_push;
 
+            // source/target connection
             if(establish_connections_for_add_cmd(&sock_source_read, &sock_target_push, curr_task)){
                 free(curr_task);
                 continue;
@@ -219,6 +218,14 @@ void *thread_exec_task(void *arg){
                 CLEANUP(sock_target_push, sock_source_read, curr_task);
                 continue;
             }
+
+            if(file_size == 0){
+                bool is_first_write = TRUE;
+                send_push_header_generic(sock_target_push, &is_first_write, file_size, curr_task->manager_cmd.target_dir, curr_task->filename);
+                CLEANUP(sock_target_push, sock_source_read, curr_task);
+                continue;
+            }
+            
             
             char pull_buffer[BUFFSIZ];
             bool is_first_push              = TRUE;
@@ -266,6 +273,39 @@ void *thread_exec_task(void *arg){
     }
     return NULL;
 }
+
+
+int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs){
+    for(int i = 0; i < total_config_pairs; i++){
+        manager_command conf_cmd;
+        conf_cmd.op = ADD;
+
+        strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
+        conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
+
+        strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
+        conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
+
+        conf_cmd.source_port = conf_pairs[i].source_port;
+
+        strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
+        conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
+
+        strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
+        conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
+
+        conf_cmd.target_port = conf_pairs[i].target_port;
+
+
+        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path);
+        if(status){
+            perror("enqueue enqueue ");
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
@@ -355,39 +395,14 @@ int main(int argc, char *argv[]){
 
     atomic_int conf_pairs_sync = 0;
 
-    // pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
-    // for(int i = 0; i < worker_limit; i++){
-    //     pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
-    // }
+    pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
+    for(int i = 0; i < worker_limit; i++){
+        pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
+    }
 
 
     if(!conf_pairs_sync){
-        for(int i = 0; i < total_config_pairs; i++){
-            manager_command conf_cmd;
-            conf_cmd.op = ADD;
-    
-            strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
-            conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
-    
-            strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
-            conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
-    
-            conf_cmd.source_port = conf_pairs[i].source_port;
-    
-            strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
-            conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
-    
-            strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
-            conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
-    
-            conf_cmd.target_port = conf_pairs[i].target_port;
-    
-    
-            int status = enqueue_add_cmd(conf_cmd, &queue_tasks, &sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path);
-            if(status){
-                perror("enqueue add");
-            }
-        }
+        enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs);
         conf_pairs_sync = 1;
     }
     
@@ -424,7 +439,6 @@ int main(int argc, char *argv[]){
             int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
             if(status){
                 printf("\n----- Dir not Monitored ---------\n");
-                
                 fflush(stdout);
                 continue;
             }
@@ -437,26 +451,26 @@ int main(int argc, char *argv[]){
 
     }
 
-    // for(int i = 0; i < worker_limit; i++){
-    //     sync_task *shutdown_task = malloc(sizeof(sync_task));
-    //     shutdown_task->manager_cmd.op = SHUTDOWN;
+    for(int i = 0; i < worker_limit; i++){
+        sync_task *shutdown_task = malloc(sizeof(sync_task));
+        shutdown_task->manager_cmd.op = SHUTDOWN;
     
-    //     shutdown_task->node                         = NULL;
-    //     shutdown_task->filename[0]                  = '\0';
-    //     shutdown_task->manager_cmd.full_path[0]     = '\0';
-    //     shutdown_task->manager_cmd.source_ip[0]     = '\0';
-    //     shutdown_task->manager_cmd.target_ip[0]     = '\0';
-    //     shutdown_task->manager_cmd.source_dir[0]    = '\0';
-    //     shutdown_task->manager_cmd.target_dir[0]    = '\0';
-    //     shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
+        shutdown_task->node                         = NULL;
+        shutdown_task->filename[0]                  = '\0';
+        shutdown_task->manager_cmd.full_path[0]     = '\0';
+        shutdown_task->manager_cmd.source_ip[0]     = '\0';
+        shutdown_task->manager_cmd.target_ip[0]     = '\0';
+        shutdown_task->manager_cmd.source_dir[0]    = '\0';
+        shutdown_task->manager_cmd.target_dir[0]    = '\0';
+        shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
 
-    //     enqueue_task(&queue_tasks, shutdown_task);
-    // }
+        enqueue_task(&queue_tasks, shutdown_task);
+    }
 
     printf("\n exiting \n");
-    // for(int i = 0; i < worker_limit; i++){
-    //     pthread_join(worker_th[i], NULL);
-    // }
+    for(int i = 0; i < worker_limit; i++){
+        pthread_join(worker_th[i], NULL);
+    }
     
 
 
