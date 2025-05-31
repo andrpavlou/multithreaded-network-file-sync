@@ -177,27 +177,27 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
 
 
 int check_args_manager(int argc, char *argv[], char** logfile, char** config_file, int *worker_limit, int *port, int *buffer_size){
-    int found = 0;
+    bool found_worker_limit = FALSE;
+
     for(int i = 1; i < argc; i++){
-        if(strncmp(argv[i], "-l", 2) == 0 && i + 1 < argc){
+        if(!strncmp(argv[i], "-l", 2) && (i == 1) && (i + 1 < argc)){
             *logfile = argv[++i];
         }
 
-        else if(!strncmp(argv[i], "-c", 2) && i + 1 < argc){
+        else if(!strncmp(argv[i], "-c", 2) && (i == 3) && (i + 1 < argc)){
             *config_file = argv[++i];
         }
 
-        else if(!strncmp(argv[i], "-n", 2) && i + 1 < argc){
+        else if(!strncmp(argv[i], "-n", 2) && (i == 5) && (i + 1 < argc)){
             *worker_limit = atoi(argv[++i]);
-            found = 1;
+            found_worker_limit = TRUE;
         }
 
-        else if(!strncmp(argv[i], "-p", 2)  && i + 1 < argc){
-
+        else if(!strncmp(argv[i], "-p", 2)  && ((i == 7) || (i == 5 && found_worker_limit == FALSE)) && (i + 1 < argc)){
             *port = atoi(argv[++i]);
         }
 
-        else if(!strncmp(argv[i], "-b", 2) && i + 1 < argc){
+        else if(!strncmp(argv[i], "-b", 2) && ((i == 9) || (i == 7 && found_worker_limit == FALSE)) && (i + 1 < argc)){
             *buffer_size = atoi(argv[++i]);
         }
         
@@ -206,7 +206,7 @@ int check_args_manager(int argc, char *argv[], char** logfile, char** config_fil
 
     if(*buffer_size <= 0) return -1;
     
-    *worker_limit = found == 0 ? 5 : *worker_limit;
+    *worker_limit = found_worker_limit == FALSE ? 5 : *worker_limit;
 
     return 0;
 }
@@ -215,15 +215,15 @@ int check_args_manager(int argc, char *argv[], char** logfile, char** config_fil
 
 int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, int *port){
     for(int i = 1; i < argc; i++){
-        if(strncmp(argv[i], "-l", 2) == 0 && i + 1 < argc){
+        if(!strncmp(argv[i], "-l", 2) && (i == 1) && (i + 1 < argc)){
             *logfile = argv[++i];
         }
 
-        else if(!strncmp(argv[i], "-h", 2) && i + 1 < argc){
+        else if(!strncmp(argv[i], "-h", 2) && (i == 3) && (i + 1 < argc)){
             *host_ip = argv[++i];
         }
 
-        else if(!strncmp(argv[i], "-p", 2)  && i + 1 < argc){
+        else if(!strncmp(argv[i], "-p", 2) && (i == 5) && (i + 1 < argc)){
             *port = atoi(argv[++i]);
         }
 
