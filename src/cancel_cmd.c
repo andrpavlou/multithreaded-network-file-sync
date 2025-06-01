@@ -86,7 +86,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 *   removed should be shifted to the index that is now empty in the middle.acct
 */
 
-void remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
+int remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
     pthread_mutex_lock(&queue->mutex);
 
     int removed_count   = 0;
@@ -122,4 +122,6 @@ void remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
     queue->size -= removed_count;
 
     pthread_mutex_unlock(&queue->mutex);
+
+    return removed_count;
 }

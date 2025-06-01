@@ -4,6 +4,27 @@
 #include "sync_info.h"
 #include "nfs_manager_def.h"
 
+
+
+#define IS_DUPLICATE_ADD_TASK(task, filename, add_cmd)(                       \
+            (!strcmp((task)->filename, (filename))                         && \
+            !strcmp((task)->manager_cmd.source_ip, (add_cmd).source_ip)    && \
+            !strcmp((task)->manager_cmd.target_ip, (add_cmd).target_ip)    && \
+            !strcmp((task)->manager_cmd.source_dir, (add_cmd).source_dir)  && \
+            !strcmp((task)->manager_cmd.target_dir, (add_cmd).target_dir)  && \
+            (task)->manager_cmd.source_port == (add_cmd).source_port       && \
+            (task)->manager_cmd.target_port == (add_cmd).target_port))
+
+
+#define IS_DUPLICATE_CANCEL_TASK(task, ip, cancel_dir, port)(          \
+            (!strcmp((task)->manager_cmd.source_ip, (ip))           && \
+            !strcmp((task)->manager_cmd.cancel_dir, (cancel_dir))   && \
+            (task)->manager_cmd.source_port == (port)))
+
+
+
+
+
 typedef struct {
     char filename[BUFFSIZ];   
     manager_command manager_cmd;       

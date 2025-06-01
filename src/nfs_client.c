@@ -251,10 +251,11 @@ int exec_command(client_command cmd, int newsock){
         int len = snprintf(size_buf, sizeof(size_buf), "%ld ", file_size);
         if(write_all(newsock, size_buf, len) == -1){
             perror("Write size");
-            close(fd_file_read);
             
+            close(fd_file_read);
             return -1;
         }
+        
         ssize_t read_bytes;
         char buffer[BUFFSIZ];
         while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){

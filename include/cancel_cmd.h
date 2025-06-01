@@ -9,7 +9,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
     const char* source_full_path);
 
 
-void remove_canceled_add_tasks(sync_task_ts *task, sync_task *cancel_task);
+int remove_canceled_add_tasks(sync_task_ts *task, sync_task *cancel_task);
 
 
 #endif

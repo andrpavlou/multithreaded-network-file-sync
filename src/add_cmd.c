@@ -42,7 +42,6 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
             continue;
         }
 
-
         sync_task *new_task         = malloc(sizeof(sync_task));
         new_task->manager_cmd.op    = curr_cmd.op;
 
@@ -80,7 +79,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         } 
         
         sync_info_mem_store *inserted_node = add_sync_info(sync_info_head, source_full_path, target_full_path);
-        if(inserted_node == NULL) {
+        if(inserted_node == NULL){
             perror("sync info insert");    
             
             free(new_task);

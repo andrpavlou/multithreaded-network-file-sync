@@ -39,7 +39,7 @@ void enqueue_task(sync_task_ts *queue, sync_task *newtask){
     // CANCEL - Operation -> Priority insert
     if(newtask->manager_cmd.op == CANCEL){
         /* Starting from the (end of the queue) to start, we move tasks one index backwards, 
-        *  shifting all the elements to the right and then insert the current task at the head. */
+           shifting all the elements to the right and then insert the current task at the head. */
         for(int i = queue->size - 1; i >= 0; i--){
             int old_idx = (queue->head + i)     % queue->buffer_slots;
             int new_idx = (queue->head + i + 1) % queue->buffer_slots;
@@ -80,39 +80,38 @@ sync_task* dequeue_task(sync_task_ts *queue){
 }
 
 bool task_exists_add(sync_task_ts *queue, const char* filename, manager_command curr_cmd){
+    pthread_mutex_lock(&queue->mutex);
+
     for(int i = 0; i < queue->size; i++){
         int index = (queue->head + i) % queue->buffer_slots;
         sync_task *task = queue->tasks_array[index];
         
 
-        if( !strcmp(task->filename, filename)                           &&
-            !strcmp(task->manager_cmd.source_ip, curr_cmd.source_ip)    &&
-            !strcmp(task->manager_cmd.target_ip, curr_cmd.target_ip)    &&
-            !strcmp(task->manager_cmd.source_dir, curr_cmd.source_dir)  &&
-            !strcmp(task->manager_cmd.target_dir, curr_cmd.target_dir)  &&
-            task->manager_cmd.source_port == curr_cmd.source_port       &&
-            task->manager_cmd.target_port == curr_cmd.target_port) 
-            { return TRUE; }
+        if(IS_DUPLICATE_ADD_TASK(task, filename, curr_cmd)){ 
+            pthread_mutex_unlock(&queue->mutex);
+            return TRUE; 
+        }
 
     }
 
+    pthread_mutex_unlock(&queue->mutex);
     return FALSE;
 }
 
 
 bool task_exists_cancel(sync_task_ts *queue, const char* ip, const char* cancel_dir, const int port){
+    pthread_mutex_lock(&queue->mutex);
+
     for(int i = 0; i < queue->size; i++){
         int index = (queue->head + i) % queue->buffer_slots;
         sync_task *task = queue->tasks_array[index];
         
-
-        if( !strcmp(task->manager_cmd.source_ip, ip)            &&
-            !strcmp(task->manager_cmd.cancel_dir, cancel_dir)   &&
-            task->manager_cmd.source_port == port )
-            { return TRUE; }
-
+        if(IS_DUPLICATE_CANCEL_TASK(task, ip, cancel_dir, port)){ 
+            pthread_mutex_unlock(&queue->mutex);
+            return TRUE; 
+        }
     }
-
+    pthread_mutex_unlock(&queue->mutex);
     return FALSE;
 }
 

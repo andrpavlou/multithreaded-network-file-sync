@@ -127,7 +127,8 @@ void *thread_exec_task(void *arg){
         }
 
         if(curr_task->manager_cmd.op == CANCEL){
-            remove_canceled_add_tasks(queue_tasks, curr_task);
+            int removed_count = remove_canceled_add_tasks(queue_tasks, curr_task);
+            printf("REMOVED COUNT: %d\n", removed_count);
         
             free(curr_task);
             continue;
@@ -206,7 +207,6 @@ void *thread_exec_task(void *arg){
                     continue;
                 }
 
-                
                 if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
                     perror("write push");
                     CLEANUP(sock_target_push, sock_source_read, curr_task);
@@ -329,8 +329,7 @@ int main(int argc, char *argv[]){
         exit(1);
     }
 
-    if(listen(socket_manager, 5) < 0) perror ("listen");
-    
+    if(listen(socket_manager, 5) < 0) perror("listen");
     printf("Listening for connections to port % d \n", port);
     
     socklen_t clientlen     = sizeof(struct sockaddr_in);
@@ -342,10 +341,12 @@ int main(int argc, char *argv[]){
 
     atomic_int conf_pairs_sync = 0;
 
-    // pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
-    // for(int i = 0; i < worker_limit; i++){
-    //     pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
-    // }
+
+    // Thread pool, ready to execute tasks
+    pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
+    for(int i = 0; i < worker_limit; i++){
+        pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
+    }
 
 
     if(!conf_pairs_sync){
@@ -398,37 +399,31 @@ int main(int argc, char *argv[]){
 
     }
 
-    // for(int i = 0; i < worker_limit; i++){
-    //     sync_task *shutdown_task = malloc(sizeof(sync_task));
-    //     shutdown_task->manager_cmd.op = SHUTDOWN;
+    for(int i = 0; i < worker_limit; i++){
+        sync_task *shutdown_task = malloc(sizeof(sync_task));
+        shutdown_task->manager_cmd.op = SHUTDOWN;
     
-    //     shutdown_task->node                         = NULL;
-    //     shutdown_task->filename[0]                  = '\0';
-    //     shutdown_task->manager_cmd.full_path[0]     = '\0';
-    //     shutdown_task->manager_cmd.source_ip[0]     = '\0';
-    //     shutdown_task->manager_cmd.target_ip[0]     = '\0';
-    //     shutdown_task->manager_cmd.source_dir[0]    = '\0';
-    //     shutdown_task->manager_cmd.target_dir[0]    = '\0';
-    //     shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
+        shutdown_task->node                         = NULL;
+        shutdown_task->filename[0]                  = '\0';
+        shutdown_task->manager_cmd.full_path[0]     = '\0';
+        shutdown_task->manager_cmd.source_ip[0]     = '\0';
+        shutdown_task->manager_cmd.target_ip[0]     = '\0';
+        shutdown_task->manager_cmd.source_dir[0]    = '\0';
+        shutdown_task->manager_cmd.target_dir[0]    = '\0';
+        shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
 
-    //     enqueue_task(&queue_tasks, shutdown_task);
-    // }
+        enqueue_task(&queue_tasks, shutdown_task);
+    }
 
     printf("\n exiting \n");
-    // for(int i = 0; i < worker_limit; i++){
-    //     pthread_join(worker_th[i], NULL);
-    // }
+    for(int i = 0; i < worker_limit; i++){
+        pthread_join(worker_th[i], NULL);
+    }
     
-    // remove_add_jobs(&queue_tasks, dequeue_task(&queue_tasks));
-    // remove_canceled_add_tasks(&queue_tasks, dequeue_task(&queue_tasks));
-    print_queue(&queue_tasks);
-
-
-    // print_queue(&queue_tasks);
 
 
     free(conf_pairs);
-    // free(worker_th);
+    free(worker_th);
     close(socket_manager);
     close(socket_console_read);
     free(queue_tasks.tasks_array);
