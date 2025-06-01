@@ -70,3 +70,56 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 
     return 0;
 }
+
+
+
+
+
+/*
+*  Removes all the queued tasks with "ADD" operation, in relation to the cancel task as:
+*       1) A task with "ADD" operation
+*       2) Same port
+*       3) Same IPs
+*       4) Source dir = Canceled dir
+*
+*   If a task matches these, it should be removed. In case of removing a task; the next task that will not be 
+*   removed should be shifted to the index that is now empty in the middle.acct
+*/
+
+void remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
+    pthread_mutex_lock(&queue->mutex);
+
+    int removed_count   = 0;
+    int next_write_idx  = queue->head; // Holds index position to write in the next, non removed task (if curr_idx != next_write_idx).
+
+    for(int i = 0; i < queue->size; i++){
+        int curr_idx = (queue->head + i) % queue->buffer_slots;
+        sync_task *curr_task = queue->tasks_array[curr_idx];
+
+        int should_remove =     curr_task->manager_cmd.op == ADD                                                            &&
+                                curr_task->manager_cmd.source_port ==  cancel_task->manager_cmd.source_port                 &&
+                                !strncmp(curr_task->manager_cmd.source_dir, cancel_task->manager_cmd.cancel_dir, BUFFSIZ)   &&
+                                !strncmp(curr_task->manager_cmd.source_ip, cancel_task->manager_cmd.source_ip, BUFFSIZ);
+        
+        if(should_remove){
+            printf("REMOVING: %s PORT: %d\n", curr_task->filename, curr_task->manager_cmd.source_port);
+            removed_count++;
+
+            free(curr_task);
+            continue;
+        }
+        
+        // Means we have an empty position in the middle, so the current_task should be shifted back, filling the empty index.
+        if(curr_idx != next_write_idx){
+            queue->tasks_array[next_write_idx] = curr_task;
+        }
+
+        // Update this no mater if (curr_idx != next_write_idx) is true or not
+        next_write_idx = (next_write_idx + 1) % queue->buffer_slots;
+    }
+
+    queue->tail = next_write_idx;
+    queue->size -= removed_count;
+
+    pthread_mutex_unlock(&queue->mutex);
+}

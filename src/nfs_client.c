@@ -186,7 +186,7 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
         while(bpos < nread){
             struct linux_dirent64 *dir = (struct linux_dirent64 *)(buf + bpos);
             
-            // Skip .. and .
+            // Skip previous dir and pwd
             if(strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")){
                 // printf("dir name: %s\n", dir->d_name);
                 strncpy(filenames[file_count], dir->d_name, BUFFSIZ - 1);

@@ -20,7 +20,7 @@
 */
 
 void print_queue(sync_task_ts *task);
-void shift_queue(sync_task_ts *task);
+// void remove_add_jobs(sync_task_ts *task, sync_task *cancel_task);
 
 volatile sig_atomic_t manager_active = 1;
 
@@ -113,9 +113,6 @@ void *thread_exec_task(void *arg){
     sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
     
     while(manager_active || queue_tasks->size){
-        // if(queue_tasks->cancel_flag == 1){
-        //     printf("\nFLAG IS ENABLED\n");
-        // }
         sync_task *curr_task = dequeue_task(queue_tasks);
         if(curr_task == NULL){
             perror("curr task is null");
@@ -130,7 +127,7 @@ void *thread_exec_task(void *arg){
         }
 
         if(curr_task->manager_cmd.op == CANCEL){
-            printf("\n\n\nTHREAD CANCELLING:\n");
+            remove_canceled_add_tasks(queue_tasks, curr_task);
         
             free(curr_task);
             continue;
@@ -422,11 +419,11 @@ int main(int argc, char *argv[]){
     //     pthread_join(worker_th[i], NULL);
     // }
     
-    
+    // remove_add_jobs(&queue_tasks, dequeue_task(&queue_tasks));
+    // remove_canceled_add_tasks(&queue_tasks, dequeue_task(&queue_tasks));
     print_queue(&queue_tasks);
-    // printf("\n-----------------PRIORITY INSERT-----------------\n");
 
-    // shift_queue(&queue_tasks);
+
     // print_queue(&queue_tasks);
 
 
@@ -447,7 +444,7 @@ int main(int argc, char *argv[]){
 static const char* cmd_to_str(manager_command cmd){
     if(cmd.op == ADD)       return "ADD";
     if(cmd.op == CANCEL)    return "CANCEL";
-    if(cmd.op == SHUTDOWN)    return "SHUTDOWN";
+    if(cmd.op == SHUTDOWN)  return "SHUTDOWN";
     
     return "INVALID";
 }
@@ -493,23 +490,3 @@ void print_queue(sync_task_ts *task){
     }
 }
 
-
-// debugging functon before implementing actual priority insert
-void shift_queue(sync_task_ts *task){
-
-    for(int i = task->size - 1; i >= 0; i--){
-        int old_idx = (task->head + i) % task->buffer_slots;
-        int new_idx = (task->head + i + 1) % task->buffer_slots;
-
-        task->tasks_array[new_idx] = task->tasks_array[old_idx];
-    }
-    sync_task *newtask = malloc(sizeof(sync_task));
-    // random op
-    newtask->manager_cmd.op = SHUTDOWN;
-
-    task->tasks_array[task->head] = newtask;
-    task->tail = (task->tail + 1) % task->buffer_slots;
-    task->size++;
-
-
-}
