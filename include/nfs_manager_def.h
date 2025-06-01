@@ -1,6 +1,8 @@
 #ifndef MANAGER_DEF_H
 #define MANAGER_DEF_H
 
+#include "common_defs.h"
+
 typedef enum{
     ADD,
     CANCEL,

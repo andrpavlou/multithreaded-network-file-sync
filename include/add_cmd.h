@@ -5,7 +5,6 @@
 #include "common_defs.h"
 #include "nfs_manager_def.h"
 #include "sync_task.h"
-#include "utils.h"
 
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
