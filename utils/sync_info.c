@@ -110,18 +110,18 @@ char** find_sync_info_hosts_by_dir(sync_info_mem_store *head, const char* dir, i
     while(found != NULL){
         if(strstr(found->source, dir) != NULL){
             
-            int duplicate = 0;
+            bool duplicate = FALSE;
             for(int i = 0; i < count; i++){
                 if(!strcmp(found_hosts[i], found->source)){
-                    duplicate = 1;
+                    duplicate = TRUE;
                     break;
                 }
             }
-            if(!duplicate){
-                count++;
-
+            
+            if(duplicate == FALSE){
                 found_hosts         = realloc(found_hosts, (count + 1) * sizeof(char*));
                 found_hosts[count]  = strdup(found->source);
+                count++;
             }
         }
 

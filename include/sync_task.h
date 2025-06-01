@@ -22,15 +22,22 @@ typedef struct {
     pthread_cond_t not_full;
     pthread_cond_t not_empty;
 
+    atomic_int cancel_cmd_counter;
+
     sync_task **tasks_array;
 } sync_task_ts;
 
 //////// THREAD SAFE QUEUE //////
 
 int init_sync_task_ts(sync_task_ts *queue, const int buffer_slots);
+
 void enqueue_task(sync_task_ts *queue, sync_task *newtask);
 sync_task* dequeue_task(sync_task_ts *queue);
-bool task_exists(sync_task_ts *queue, const char* file, manager_command curr_cmd);
+
+
+bool task_exists_add(sync_task_ts *queue, const char* file, manager_command curr_cmd);
+bool task_exists_cancel(sync_task_ts *queue, const char* ip, const char* cancel_dir, const int port);
+
 void free_queue_task(sync_task_ts *queue);
 
 /////////////////////////////////

@@ -233,7 +233,6 @@ int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, i
 }
 
 
-
 //////////// TODO: CREATE MORE MODULES FOR THESE
 // Handles the errors -> no need for closing the socket after error
 int establish_connection(int *sock, const char *ip, const int port){

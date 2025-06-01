@@ -19,6 +19,7 @@
 */
 
 void print_queue(sync_task_ts *task);
+void shift_queue(sync_task_ts *task);
 
 volatile sig_atomic_t manager_active = 1;
 
@@ -108,21 +109,30 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head, 
     const char* source_full_path){
 
-    int host_count = 0;
+    int host_count      = 0;
     char **found_hosts  = find_sync_info_hosts_by_dir((*sync_info_head), curr_cmd.cancel_dir, &host_count);
     if(!host_count) return 1;
     
 
     printf("\n--------------------\n");
     for(int i = 0; i < host_count; i++){
+
         int current_parsed_port = -1;
         char current_parsed_ip[BUFFSIZ];
 
         int status = parse_path(found_hosts[i], NULL, current_parsed_ip, &current_parsed_port);
         if(status){
+            printf("idx: %d found host: %s counter: %d\n", i, found_hosts[i], host_count);
+            fflush(stdout);
             perror("parse path for cancel");
             continue;
         }
+        if(task_exists_cancel(queue_tasks, (const char *)current_parsed_ip, (const char *)curr_cmd.cancel_dir, current_parsed_port) == TRUE){
+            printf("CANCEL ALREADY QUEUED.......\n"); // proper logging
+            fflush(stdout);
+            continue;
+        }
+
         
         sync_task *new_task         = malloc(sizeof(sync_task));
         new_task->manager_cmd.op    = CANCEL;
@@ -138,10 +148,11 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
         new_task->manager_cmd.source_ip[manager_buff_size - 1] = '\0';
         
         // Copy source port of the cancelling dir
-        new_task->manager_cmd.source_port = current_parsed_port ;
+        new_task->manager_cmd.source_port = current_parsed_port;
 
+        // No need for error checking, because it can not be null due earlier check with: find_sync_info_hosts_by_dir
         sync_info_mem_store *curr_cancel_dir_node = find_sync_info((*sync_info_head), found_hosts[i], NULL);
-        new_task->node = curr_cancel_dir_node;
+        new_task->node                      = curr_cancel_dir_node;
 
         new_task->filename[0]               = '\0';
         new_task->manager_cmd.target_ip[0]  = '\0';
@@ -165,6 +176,9 @@ void *thread_exec_task(void *arg){
     sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
     
     while(manager_active || queue_tasks->size){
+        // if(queue_tasks->cancel_flag == 1){
+        //     printf("\nFLAG IS ENABLED\n");
+        // }
         sync_task *curr_task = dequeue_task(queue_tasks);
         if(curr_task == NULL){
             perror("curr task is null");
@@ -381,12 +395,11 @@ int main(int argc, char *argv[]){
         exit(1);
     }
 
-    if(listen(socket_manager, 5) < 0) perror ("listen") ;
+    if(listen(socket_manager, 5) < 0) perror ("listen");
     
-    socklen_t clientlen;
     printf("Listening for connections to port % d \n", port);
     
-    clientlen = sizeof(struct sockaddr_in);
+    socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
     if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
         perror("accept ");
@@ -395,10 +408,10 @@ int main(int argc, char *argv[]){
 
     atomic_int conf_pairs_sync = 0;
 
-    pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
-    for(int i = 0; i < worker_limit; i++){
-        pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
-    }
+    // pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
+    // for(int i = 0; i < worker_limit; i++){
+    //     pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
+    // }
 
 
     if(!conf_pairs_sync){
@@ -451,27 +464,33 @@ int main(int argc, char *argv[]){
 
     }
 
-    for(int i = 0; i < worker_limit; i++){
-        sync_task *shutdown_task = malloc(sizeof(sync_task));
-        shutdown_task->manager_cmd.op = SHUTDOWN;
+    // for(int i = 0; i < worker_limit; i++){
+    //     sync_task *shutdown_task = malloc(sizeof(sync_task));
+    //     shutdown_task->manager_cmd.op = SHUTDOWN;
     
-        shutdown_task->node                         = NULL;
-        shutdown_task->filename[0]                  = '\0';
-        shutdown_task->manager_cmd.full_path[0]     = '\0';
-        shutdown_task->manager_cmd.source_ip[0]     = '\0';
-        shutdown_task->manager_cmd.target_ip[0]     = '\0';
-        shutdown_task->manager_cmd.source_dir[0]    = '\0';
-        shutdown_task->manager_cmd.target_dir[0]    = '\0';
-        shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
+    //     shutdown_task->node                         = NULL;
+    //     shutdown_task->filename[0]                  = '\0';
+    //     shutdown_task->manager_cmd.full_path[0]     = '\0';
+    //     shutdown_task->manager_cmd.source_ip[0]     = '\0';
+    //     shutdown_task->manager_cmd.target_ip[0]     = '\0';
+    //     shutdown_task->manager_cmd.source_dir[0]    = '\0';
+    //     shutdown_task->manager_cmd.target_dir[0]    = '\0';
+    //     shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
 
-        enqueue_task(&queue_tasks, shutdown_task);
-    }
+    //     enqueue_task(&queue_tasks, shutdown_task);
+    // }
 
     printf("\n exiting \n");
-    for(int i = 0; i < worker_limit; i++){
-        pthread_join(worker_th[i], NULL);
-    }
+    // for(int i = 0; i < worker_limit; i++){
+    //     pthread_join(worker_th[i], NULL);
+    // }
     
+    
+    print_queue(&queue_tasks);
+    // printf("\n-----------------PRIORITY INSERT-----------------\n");
+
+    // shift_queue(&queue_tasks);
+    // print_queue(&queue_tasks);
 
 
     free(conf_pairs);
@@ -491,6 +510,7 @@ int main(int argc, char *argv[]){
 static const char* cmd_to_str(manager_command cmd){
     if(cmd.op == ADD)       return "ADD";
     if(cmd.op == CANCEL)    return "CANCEL";
+    if(cmd.op == SHUTDOWN)    return "SHUTDOWN";
     
     return "INVALID";
 }
@@ -501,7 +521,7 @@ void print_queue(sync_task_ts *task){
         printf("NULL task\n");
         return;
     }
-
+    printf("Atomic Counter: %d\n", task->cancel_cmd_counter);
     for(int i = 0; i < task->size; i++){
         int index = (task->head + i) % task->buffer_slots;
         sync_task *curr_task = task->tasks_array[index];
@@ -524,6 +544,7 @@ void print_queue(sync_task_ts *task){
             printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
         }
 
+
         if(curr_task->node){
             printf("Sync Info:\n");
             printf("  Source\t: %s\n", curr_task->node->source);
@@ -533,4 +554,25 @@ void print_queue(sync_task_ts *task){
         }
         printf("----------------------------------\n");
     }
+}
+
+
+// debugging functon before implementing actual priority insert
+void shift_queue(sync_task_ts *task){
+
+    for(int i = task->size - 1; i >= 0; i--){
+        int old_idx = (task->head + i) % task->buffer_slots;
+        int new_idx = (task->head + i + 1) % task->buffer_slots;
+
+        task->tasks_array[new_idx] = task->tasks_array[old_idx];
+    }
+    sync_task *newtask = malloc(sizeof(sync_task));
+    // random op
+    newtask->manager_cmd.op = SHUTDOWN;
+
+    task->tasks_array[task->head] = newtask;
+    task->tail = (task->tail + 1) % task->buffer_slots;
+    task->size++;
+
+
 }
