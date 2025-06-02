@@ -35,22 +35,6 @@
     echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2424
 
 */
-struct linux_dirent64 {
-    ino64_t        d_ino;
-    off64_t        d_off;
-    unsigned short d_reclen;
-    unsigned char  d_type;
-    char           d_name[];
-};
-
-#define CHECK_READ(read_b, total_read, buffer)  \
-    do {                                        \
-        if((read_b) == 0){                      \
-            buffer[total_read] = '\0';          \
-            return total_read;                  \
-        }                                       \
-        if((read_b) < 0) return -1;             \
-    }while(0) 
 
 
 ssize_t read_line(int socket, char *buffer, ssize_t max_read){
@@ -84,10 +68,9 @@ ssize_t read_line(int socket, char *buffer, ssize_t max_read){
 }
 
 
-
 volatile sig_atomic_t client_active = 1;
 
-
+// TODO: change this
 int arg_check(int argc, const char** argv, int *port){
     if(argc != 3) return 1;
 
@@ -95,15 +78,6 @@ int arg_check(int argc, const char** argv, int *port){
 
     *port = atoi(argv[2]);
     return 0;
-}
-
-
-const char* cmd_to_str(client_operation cmd){
-    if(cmd == LIST) return "LIST";
-    if(cmd == PULL) return "PULL";
-    if(cmd == PUSH) return "PUSH";
-    
-    return "INVALID";
 }
 
 
@@ -276,6 +250,7 @@ int exec_command(client_command cmd, int newsock){
     // just create the file if chunk size is -1
     if(cmd.op == PUSH && cmd.chunk_size == -1){
         int fd_file_write = open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666);
+
         
         printf("FILENAME: %s\n", cmd.path);
         if(fd_file_write == -1){
@@ -297,10 +272,15 @@ int exec_command(client_command cmd, int newsock){
             perror("read exec command for push");
             return 1;
         }
-        int fd_file_write = open(cmd.path, O_WRONLY | O_APPEND);
+        int fd_file_write = open(cmd.path, O_WRONLY);
         
         if(fd_file_write == -1){
             perror("push open\n");
+            return 1;
+        }
+        if(lseek(fd_file_write, 0, SEEK_END) == -1){
+            perror("lseek");
+            close(fd_file_write);
             return 1;
         }
 

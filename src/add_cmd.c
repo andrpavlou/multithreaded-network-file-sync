@@ -188,7 +188,6 @@ int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_pu
     if(establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)){
         perror("establish con target");
         return 1;
-    }  
-
+    }
     return 0;
 }

@@ -143,6 +143,9 @@ void *thread_exec_task(void *arg){
                 free(curr_task);
                 continue;
             }
+        //     printf("[Thread %lu] Task %p | source_fd = %d, target_fd = %d\n",
+        //    pthread_self(), (void*)curr_task, sock_source_read, sock_target_push);
+
 
             char pull_request_cmd_buff[BUFFSIZ];
             memset(pull_request_cmd_buff, 0, sizeof(pull_request_cmd_buff));
@@ -188,33 +191,29 @@ void *thread_exec_task(void *arg){
                     if(send_last_push_chunk(sock_target_push, curr_task->filename, curr_task->manager_cmd.target_dir)){
                         perror("send_last_push_chunk");
                     }
-
-                    CLOSE_SOCKETS(sock_target_push, sock_source_read);
                     break;
                 }
 
                 ssize_t n_read;
                 if((n_read = read_all(sock_source_read, pull_buffer, request_bytes)) <= 0){
                     perror("\nread pull_buffer");
-                 
-                    CLEANUP(sock_target_push, sock_source_read, curr_task);
-                    continue;
+                    break;
                 }
                 
 
                 if(send_push_header_generic(sock_target_push, &is_first_push, request_bytes, curr_task->manager_cmd.target_dir, curr_task->filename)){
-                    CLEANUP(sock_target_push, sock_source_read, curr_task);
-                    continue;
+                    break;
                 }
 
                 if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
                     perror("write push");
-                    CLEANUP(sock_target_push, sock_source_read, curr_task);
-                    continue;
+                    break;
                 }
                 
                 total_read_pull_req += n_read;
             }
+            printf("[Thread %lu] Finished sending %s: total = %zd bytes\n", pthread_self(), curr_task->filename, total_read_pull_req);
+
             CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         

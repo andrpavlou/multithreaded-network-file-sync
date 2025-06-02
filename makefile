@@ -89,9 +89,9 @@ $(CONSOLE_OBJ): $(CONSOLE_SRC) | $(OBJDIR)
 
 
 clean:
-	@rm -rf obj bin
 	@rm source2/*
 	@rm source3/*
+	@rm -rf obj bin
 	@rm source4/*
 	@rm source5/*
 

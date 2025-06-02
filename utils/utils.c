@@ -7,7 +7,7 @@
 #include <string.h>
 #include <netdb.h>      
 #include <stdio.h>      
-
+#include <errno.h>
 
 
 static inline int create_dir(const char *path){
@@ -262,24 +262,33 @@ int establish_connection(int *sock, const char *ip, const int port){
     return 0;
 }
 
-ssize_t write_all(int fd, const void *buff, size_t size){
-    ssize_t sent, n;
-    for(sent = 0; sent < size; sent+=n) {
-        if ((n = write(fd, buff+sent, size-sent)) == -1) return -1;
+ssize_t write_all(int fd, const void *buf, size_t size) {
+    ssize_t total_written = 0;
+    while(total_written < size){
+        ssize_t n = write(fd, (char*)buf + total_written, size - total_written);
+        
+        if(n < 0)   return -1;
+        if(n == 0)  break;
+        
+        total_written += n;
     }
 
-    return sent;
+    return total_written;
 }
 
 
 ssize_t read_all(int fd, void *buf, size_t size){
     ssize_t total_read_b = 0;
-    ssize_t n = 0;
-    for( ; total_read_b < size; total_read_b += n){
-        n = read(fd, (char*) buf + total_read_b, size - total_read_b);
+
+    while(total_read_b < size){
+        ssize_t n = read(fd, (char*) buf + total_read_b, size - total_read_b);
         
         if(n <= 0) return n;
+        if(n == 0) return -1;
+
+        total_read_b += n;
     }
+
     return total_read_b;
 }
 
