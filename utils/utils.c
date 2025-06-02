@@ -8,7 +8,7 @@
 #include <netdb.h>      
 #include <stdio.h>      
 #include <errno.h>
-
+#include <time.h>
 
 static inline int create_dir(const char *path){
     struct stat st = {0};
@@ -383,5 +383,19 @@ long get_file_size_of_host(int sock){
 
 
 
+// returns current time and date formatted string
+char* get_current_time_str(void){
 
+    static char time_buffer[64];        // static is required to be able to return it.
+    time_t current_time = time(NULL);   // get current time
+    struct tm *time_info = localtime(&current_time); // update the struct with the  current time 
+
+    if(time_info != NULL){
+        strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", time_info);
+    } else {
+        snprintf(time_buffer, sizeof(time_buffer), "Unknown time");
+    }
+
+    return time_buffer;
+}
 

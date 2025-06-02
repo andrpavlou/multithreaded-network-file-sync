@@ -28,6 +28,7 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs);
 int read_next_line_from_file(int fd, char *line, int max_len);
 int check_args_manager(int argc, char *argv[], char** logfile, char** config_file, int *worker_limit, int *port, int *buffer_size);
 int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, int *port);
+char* get_current_time_str(void);
 
 //////////// TODO: socket related must add these to other modules
 int establish_connection(int *sock, const char *ip, const int port);

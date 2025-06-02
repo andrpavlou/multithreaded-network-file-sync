@@ -6,7 +6,7 @@
 #include "common_defs.h"
 #include "add_cmd.h"
 #include "cancel_cmd.h"
-
+#include "logging_defs.h"
 
 
 /*
@@ -106,9 +106,6 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 }
 
 
-
-
-
 void *thread_exec_task(void *arg){
     sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
     
@@ -120,8 +117,6 @@ void *thread_exec_task(void *arg){
         }
 
         if(curr_task->manager_cmd.op == SHUTDOWN){
-            printf("Thread %lu shutting down\n", pthread_self());
-            
             free(curr_task);
             break;
         }
@@ -143,9 +138,6 @@ void *thread_exec_task(void *arg){
                 free(curr_task);
                 continue;
             }
-        //     printf("[Thread %lu] Task %p | source_fd = %d, target_fd = %d\n",
-        //    pthread_self(), (void*)curr_task, sock_source_read, sock_target_push);
-
 
             char pull_request_cmd_buff[BUFFSIZ];
             memset(pull_request_cmd_buff, 0, sizeof(pull_request_cmd_buff));
@@ -181,12 +173,12 @@ void *thread_exec_task(void *arg){
             
             char pull_buffer[BUFFSIZ];
             bool is_first_push              = TRUE;
-            ssize_t total_read_pull_req     = 0;
-
-            while(total_read_pull_req <= file_size){
+            ssize_t total_write_push        = 0;
+            ssize_t total_read_pull         = 0;
+            while(total_write_push <= file_size){
                 memset(pull_buffer, 0, sizeof(pull_buffer)); 
                 
-                ssize_t request_bytes = MIN((file_size - total_read_pull_req), BUFFSIZ - 1);
+                ssize_t request_bytes = MIN((file_size - total_write_push), BUFFSIZ - 1);
                 if(!request_bytes){
                     if(send_last_push_chunk(sock_target_push, curr_task->filename, curr_task->manager_cmd.target_dir)){
                         perror("send_last_push_chunk");
@@ -195,25 +187,28 @@ void *thread_exec_task(void *arg){
                 }
 
                 ssize_t n_read;
-                if((n_read = read_all(sock_source_read, pull_buffer, request_bytes)) <= 0){
+                if((n_read = read_all(sock_source_read, pull_buffer, request_bytes)) == -1){
                     perror("\nread pull_buffer");
                     break;
                 }
-                
+                total_read_pull += n_read;
 
                 if(send_push_header_generic(sock_target_push, &is_first_push, request_bytes, curr_task->manager_cmd.target_dir, curr_task->filename)){
                     break;
                 }
 
-                if(write_all(sock_target_push, pull_buffer, request_bytes) == -1){
+                ssize_t write_b;
+                if((write_b = write_all(sock_target_push, pull_buffer, request_bytes)) == -1){
                     perror("write push");
                     break;
                 }
                 
-                total_read_pull_req += n_read;
+                total_write_push += write_b;
             }
-            printf("[Thread %lu] Finished sending %s: total = %zd bytes\n", pthread_self(), curr_task->filename, total_read_pull_req);
-
+            
+            
+            LOG_PULL_SUCCESS(curr_task, total_read_pull);
+            LOG_PUSH_SUCCESS(curr_task, total_write_push);
             CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         
@@ -222,7 +217,7 @@ void *thread_exec_task(void *arg){
 }
 
 
-int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs){
+int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs, int fd_log){
     for(int i = 0; i < total_config_pairs; i++){
         manager_command conf_cmd;
         conf_cmd.op = ADD;
@@ -244,7 +239,7 @@ int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info
         conf_cmd.target_port = conf_pairs[i].target_port;
 
 
-        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path);
+        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log);
         if(status){
             perror("enqueue enqueue ");
             return 1;
@@ -274,6 +269,11 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
+    int fd_log;
+    if((fd_log = open(logfile, O_WRONLY | O_TRUNC | O_CREAT), 0664) < 0){
+        perror("open logfile");
+        return 1;
+    }
 
     struct sigaction sa;
     sa.sa_handler = handle_sigint;
@@ -331,6 +331,8 @@ int main(int argc, char *argv[]){
     if(listen(socket_manager, 5) < 0) perror("listen");
     printf("Listening for connections to port % d \n", port);
     
+
+
     socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
     if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
@@ -338,8 +340,8 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    atomic_int conf_pairs_sync = 0;
 
+    atomic_int conf_pairs_sync = 0;
 
     // Thread pool, ready to execute tasks
     pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
@@ -349,11 +351,10 @@ int main(int argc, char *argv[]){
 
 
     if(!conf_pairs_sync){
-        enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs);
+        enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs, fd_log);
         conf_pairs_sync = 1;
     }
     
-
 
     printf("Accepted connection \n") ;
     while(manager_active){
@@ -376,9 +377,10 @@ int main(int argc, char *argv[]){
         }
 
         if(curr_cmd.op == ADD){
-            int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path);
+            int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log);
             if(status){
                 perror("enqueue add");
+                continue;
             }
         }
 
@@ -421,6 +423,7 @@ int main(int argc, char *argv[]){
     
 
 
+    close(fd_log);
     free(conf_pairs);
     free(worker_th);
     close(socket_manager);

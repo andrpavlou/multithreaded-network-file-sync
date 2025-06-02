@@ -7,8 +7,9 @@
 #include "sync_task.h"
 
 
+
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
-    const char* source_full_path, const char *target_full_path);
+    const char* source_full_path, const char *target_full_path, int fd_log);
 
 int send_last_push_chunk(int sock_target_push, const char* filename, const char* target_dir);
 int send_header(const int sock_target_push, const bool is_first_write, int request_bytes, const char *target_dir, const char *filename);

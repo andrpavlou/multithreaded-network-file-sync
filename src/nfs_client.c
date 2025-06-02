@@ -272,18 +272,12 @@ int exec_command(client_command cmd, int newsock){
             perror("read exec command for push");
             return 1;
         }
-        int fd_file_write = open(cmd.path, O_WRONLY);
+        int fd_file_write = open(cmd.path, O_WRONLY | O_APPEND);
         
         if(fd_file_write == -1){
             perror("push open\n");
             return 1;
         }
-        if(lseek(fd_file_write, 0, SEEK_END) == -1){
-            perror("lseek");
-            close(fd_file_write);
-            return 1;
-        }
-
 
         ssize_t write_bytes = write(fd_file_write, cmd.data, cmd.chunk_size);
         if(write_bytes != cmd.chunk_size){

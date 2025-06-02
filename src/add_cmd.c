@@ -1,13 +1,18 @@
 #include "add_cmd.h"
 #include "utils.h"
+#include "logging_defs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+
+
+
+
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
-    const char* source_full_path, const char *target_full_path){
+    const char* source_full_path, const char *target_full_path, int fd_log){
     
 
     int sock_source_read;
@@ -37,8 +42,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     for(int i = 0; i < total_src_files; i++){
         if(task_exists_add(queue_tasks, file_buff[i], curr_cmd) == TRUE){
-            printf("DIR ALREADY MONITORED.......\n"); // proper logging
-            fflush(stdout);
+            
+            ALREADY_IN_QUEUE_LOG(curr_cmd, file_buff[i], fd_log);
             continue;
         }
 
@@ -75,6 +80,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
             new_task->node = find_node;
             enqueue_task(queue_tasks, new_task);
 
+            ADDED_FILE_LOG(new_task, fd_log);
             continue;
         } 
         
@@ -89,6 +95,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
         new_task->node = inserted_node;
         enqueue_task(queue_tasks, new_task);
+
+        ADDED_FILE_LOG(new_task, fd_log);
     }
 
     free(list_reply_buff);
