@@ -39,7 +39,7 @@
 
 // PULL / PUSH LOGS
 
-#define LOG_PULL_SUCCESS(curr_task, total_read_pull) do{ \
+#define LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
         "[%s] [%s@%s:%d] [%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
@@ -51,12 +51,12 @@
         "SUCCESS", \
         (total_read_pull), \
         "bytes pulled"); \
-    write(1, log_buffer, strlen(log_buffer)); \
+    write((log_fd), log_buffer, strlen(log_buffer)); \
 } while(0)
 
 
 
-#define LOG_PUSH_SUCCESS(curr_task, total_write_push) do{ \
+#define LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
         "[%s] [%s@%s:%d] [%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
@@ -68,7 +68,7 @@
         "SUCCESS", \
         (total_write_push), \
         "bytes pushed"); \
-    write(1, log_buffer, strlen(log_buffer)); \
+    write(log_fd, log_buffer, strlen(log_buffer)); \
 } while(0)
 
 

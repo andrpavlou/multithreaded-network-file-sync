@@ -105,9 +105,18 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
     return 1;
 }
 
+typedef struct {
+    sync_task_ts *queue;
+    int log_fd;
+} thread_args;
+
 
 void *thread_exec_task(void *arg){
-    sync_task_ts *queue_tasks   = (sync_task_ts*)arg;
+    thread_args *args = (thread_args*) arg;
+    sync_task_ts *queue_tasks = args->queue;
+    int log_fd = args->log_fd;
+
+
     
     while(manager_active || queue_tasks->size){
         sync_task *curr_task = dequeue_task(queue_tasks);
@@ -206,13 +215,13 @@ void *thread_exec_task(void *arg){
                 total_write_push += write_b;
             }
             
-            
-            LOG_PULL_SUCCESS(curr_task, total_read_pull);
-            LOG_PUSH_SUCCESS(curr_task, total_write_push);
+            LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd);
+            LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd);
             CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         
     }
+    free(args);
     return NULL;
 }
 
@@ -247,6 +256,7 @@ int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info
     }
     return 0;
 }
+
 
 
 
@@ -346,7 +356,12 @@ int main(int argc, char *argv[]){
     // Thread pool, ready to execute tasks
     pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
     for(int i = 0; i < worker_limit; i++){
-        pthread_create(&worker_th[i], NULL, thread_exec_task, &queue_tasks);
+        thread_args *arglist = malloc(sizeof(thread_args));
+
+        arglist->queue     = &queue_tasks;
+        arglist->log_fd    = fd_log;
+
+        pthread_create(&worker_th[i], NULL, thread_exec_task, arglist);
     }
 
 
