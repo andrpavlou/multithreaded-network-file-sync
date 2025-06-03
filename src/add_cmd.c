@@ -12,7 +12,7 @@
 
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
-    const char* source_full_path, const char *target_full_path, int fd_log){
+    const char* source_full_path, const char *target_full_path, int fd_log, int write_sock){
     
 
     int sock_source_read;
@@ -80,7 +80,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
             new_task->node = find_node;
             enqueue_task(queue_tasks, new_task);
 
-            ADDED_FILE_LOG(new_task, fd_log);
+            ADDED_FILE_LOG(new_task, fd_log, write_sock);
             continue;
         } 
         
@@ -95,8 +95,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
         new_task->node = inserted_node;
         enqueue_task(queue_tasks, new_task);
-
-        ADDED_FILE_LOG(new_task, fd_log);
+        
+        ADDED_FILE_LOG(new_task, fd_log, write_sock);
     }
 
     free(list_reply_buff);

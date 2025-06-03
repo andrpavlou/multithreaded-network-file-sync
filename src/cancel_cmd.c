@@ -1,6 +1,7 @@
 #include "cancel_cmd.h"
 #include "sync_info.h"
 #include "utils.h"
+#include "logging_defs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +17,6 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
     if(!host_count) return 1;
     
 
-    printf("\n--------------------\n");
     for(int i = 0; i < host_count; i++){
 
         int current_parsed_port = -1;
@@ -86,7 +86,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 *   removed should be shifted to the index that is now empty in the middle.acct
 */
 
-int remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
+int remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task, int fd_log){
     pthread_mutex_lock(&queue->mutex);
 
     int removed_count   = 0;
@@ -102,7 +102,6 @@ int remove_canceled_add_tasks(sync_task_ts *queue, sync_task *cancel_task){
                                 !strncmp(curr_task->manager_cmd.source_ip, cancel_task->manager_cmd.source_ip, BUFFSIZ);
         
         if(should_remove){
-            printf("REMOVING: %s PORT: %d\n", curr_task->filename, curr_task->manager_cmd.source_port);
             removed_count++;
 
             free(curr_task);

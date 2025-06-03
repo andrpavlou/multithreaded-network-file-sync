@@ -108,14 +108,16 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 typedef struct {
     sync_task_ts *queue;
     int log_fd;
+    int write_console_sock;
 } thread_args;
 
 
 void *thread_exec_task(void *arg){
     thread_args *args = (thread_args*) arg;
     sync_task_ts *queue_tasks = args->queue;
-    int log_fd = args->log_fd;
-
+    int fd_log = args->log_fd;
+    int write_socket = args->write_console_sock;
+    free(args);
 
     
     while(manager_active || queue_tasks->size){
@@ -131,8 +133,12 @@ void *thread_exec_task(void *arg){
         }
 
         if(curr_task->manager_cmd.op == CANCEL){
-            int removed_count = remove_canceled_add_tasks(queue_tasks, curr_task);
-            printf("REMOVED COUNT: %d\n", removed_count);
+            int removed_count = remove_canceled_add_tasks(queue_tasks, curr_task, fd_log);
+            if(removed_count){
+                LOG_CANCEL_SUCCESS(curr_task, fd_log);
+            } else {
+                LOG_CANCEL_NOT_MONITORED_THREAD(curr_task, fd_log);
+            }
         
             free(curr_task);
             continue;
@@ -215,18 +221,18 @@ void *thread_exec_task(void *arg){
                 total_write_push += write_b;
             }
             
-            LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd);
-            LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd);
+            LOG_PULL_SUCCESS(curr_task, total_read_pull, fd_log);
+            LOG_PUSH_SUCCESS(curr_task, total_write_push, fd_log);
             CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         
     }
-    free(args);
     return NULL;
 }
 
 
-int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs, int fd_log){
+int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs, 
+    int fd_log, int write_sock){
     for(int i = 0; i < total_config_pairs; i++){
         manager_command conf_cmd;
         conf_cmd.op = ADD;
@@ -248,7 +254,7 @@ int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info
         conf_cmd.target_port = conf_pairs[i].target_port;
 
 
-        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log);
+        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log, write_sock);
         if(status){
             perror("enqueue enqueue ");
             return 1;
@@ -358,19 +364,19 @@ int main(int argc, char *argv[]){
     for(int i = 0; i < worker_limit; i++){
         thread_args *arglist = malloc(sizeof(thread_args));
 
-        arglist->queue     = &queue_tasks;
-        arglist->log_fd    = fd_log;
+        arglist->queue              = &queue_tasks;
+        arglist->log_fd             = fd_log;
+        arglist->write_console_sock = socket_console_read;
 
         pthread_create(&worker_th[i], NULL, thread_exec_task, arglist);
     }
 
 
     if(!conf_pairs_sync){
-        enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs, fd_log);
+        enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs, fd_log, -1);
         conf_pairs_sync = 1;
     }
     
-
     printf("Accepted connection \n") ;
     while(manager_active){
 
@@ -392,7 +398,7 @@ int main(int argc, char *argv[]){
         }
 
         if(curr_cmd.op == ADD){
-            int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log);
+            int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log, socket_console_read);
             if(status){
                 perror("enqueue add");
                 continue;
@@ -402,8 +408,7 @@ int main(int argc, char *argv[]){
         if(curr_cmd.op == CANCEL){
             int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
             if(status){
-                printf("\n----- Dir not Monitored ---------\n");
-                fflush(stdout);
+                LOG_CANCEL_NOT_MONITORED(curr_cmd, fd_log);
                 continue;
             }
         }
