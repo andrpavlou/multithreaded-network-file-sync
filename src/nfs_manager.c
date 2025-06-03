@@ -115,8 +115,8 @@ typedef struct {
 void *thread_exec_task(void *arg){
     thread_args *args = (thread_args*) arg;
     sync_task_ts *queue_tasks = args->queue;
-    int fd_log = args->log_fd;
-    int write_socket = args->write_console_sock;
+    int fd_log          = args->log_fd;
+    int write_socket    = args->write_console_sock;
     free(args);
 
     
@@ -134,12 +134,24 @@ void *thread_exec_task(void *arg){
 
         if(curr_task->manager_cmd.op == CANCEL){
             int removed_count = remove_canceled_add_tasks(queue_tasks, curr_task, fd_log);
+            
             if(removed_count){
-                LOG_CANCEL_SUCCESS(curr_task, fd_log);
+                LOG_CANCEL_SUCCESS(curr_task, fd_log, write_socket);
             } else {
-                LOG_CANCEL_NOT_MONITORED_THREAD(curr_task, fd_log);
+                LOG_CANCEL_NOT_MONITORED_THREAD(curr_task, write_socket);
             }
-        
+            
+            /* 
+             * When inputted "cancel" is possible to have 1+ cancel queued task, simultaneously,
+             * for the same dir if it exists in multiple hosts so,
+             * (1 command -> multiple tasks queued). It is  Important to keep track of 
+             * the lastthread exiting to send "END\n" to console to avoid race condition. 
+             */
+            if(atomic_fetch_sub(&queue_tasks->cancel_cmd_counter, 1) == 1){
+                write(write_socket, "END\n", 4);
+            }
+
+
             free(curr_task);
             continue;
         }
@@ -394,6 +406,7 @@ int main(int argc, char *argv[]){
         char *source_full_path, *target_full_path;
         if(parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)){
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
+            write(socket_console_read, "END\n", 4);
             continue;
         }
 
@@ -403,12 +416,14 @@ int main(int argc, char *argv[]){
                 perror("enqueue add");
                 continue;
             }
+            write(socket_console_read, "END\n", 4);
         }
 
         if(curr_cmd.op == CANCEL){
             int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
             if(status){
-                LOG_CANCEL_NOT_MONITORED(curr_cmd, fd_log);
+                LOG_CANCEL_NOT_MONITORED(curr_cmd, socket_console_read);
+                write(socket_console_read, "END\n", 4);
                 continue;
             }
         }

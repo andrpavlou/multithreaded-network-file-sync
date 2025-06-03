@@ -1,3 +1,4 @@
+#include <sys/select.h>
 #include "common.h"
 #include "utils.h"
 
@@ -8,6 +9,42 @@ void handle_sigint(int sig){
 }
 
 
+ssize_t read_line_manager(int sock, char *buffer, size_t max_len) {
+    size_t total_read = 0, read_b;
+    char c;
+    do{
+        read_b = read(sock, &c, 1);
+        
+        if(read_b == 0) break;
+        if(read_b < 0)  return -1;
+
+        buffer[total_read++] = c;
+    } while (total_read < max_len - 1 && c != '\n');
+      
+    buffer[total_read] = '\0';
+    return total_read;
+}
+
+
+int read_from_manager(int sock_fd) {
+    char buffer[BUFFSIZ];
+
+    while(1){
+        ssize_t read_b;
+        if((read_b = read_line_manager(sock_fd, buffer, sizeof(buffer))) == 0) break;
+        if(read_b < 0) return -1;
+
+        if(!strncmp(buffer, "END\n", 4)) break;
+
+        write(1, buffer, read_b); 
+    }
+
+    return 0;
+}
+
+
+
+// TODO: what todo with invalid commands
 
 // bin/nfs_console -l logs/console.log -h localhost -p 2525
 int main(int argc, char* argv[]){
@@ -32,11 +69,9 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-
     
     while(console_active){
-        printf("> ");
-        fflush(stdout);
+        write(1, "> ", 2);
         char console_buffer[BUFFSIZ];
         
         ssize_t read_b = read(0, console_buffer, BUFFSIZ - 1);
@@ -52,10 +87,9 @@ int main(int argc, char* argv[]){
             perror("write");
         }
 
-
         if(!strncasecmp(console_buffer, "shutdown", 9)) console_active = 0;
 
-        printf("Bytes written: %ld\n", write_b);
+        read_from_manager(socket_host_manager);
     }
 
     printf("exiting\n");

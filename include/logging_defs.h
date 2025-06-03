@@ -22,7 +22,7 @@
 } while(0)
 
 
-#define ALREADY_IN_QUEUE_LOG(curr_cmd, filename, fd_log) do{                                    \
+#define ALREADY_IN_QUEUE_LOG(curr_cmd, filename, write_sock) do{                                    \
     char log_buffer[BUFSIZ * 4];                                                                \
     snprintf(log_buffer, sizeof(log_buffer), "[%s] Already in queue: %s/%s@%s:%d\n",            \
         get_current_time_str(),                                                                 \
@@ -31,7 +31,7 @@
         (curr_cmd).source_ip,                                                                   \
         (curr_cmd).source_port);                                                                \
     write(1, log_buffer, strlen(log_buffer));                                                   \
-    write((fd_log), log_buffer, strlen(log_buffer));                                            \
+    write((write_sock), log_buffer, strlen(log_buffer));                                            \
 } while(0)
 
 
@@ -74,13 +74,14 @@
 
 ////////////////// CANCEL LOGS //////////////////
 
-#define LOG_CANCEL_SUCCESS(curr_task, log_fd) do{ \
+#define LOG_CANCEL_SUCCESS(curr_task, log_fd, sock_write) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
         "[%s] Synchronization stopped for: /%s@%s:%d\n", \
         get_current_time_str(), \
         (curr_task)->manager_cmd.cancel_dir , (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port); \
-    write(log_fd, log_buffer, strlen(log_buffer)); \
+    write((sock_write), log_buffer, strlen(log_buffer)); \
+    write((log_fd), log_buffer, strlen(log_buffer)); \
     write(1, log_buffer, strlen(log_buffer)); \
 } while(0)
 
@@ -103,14 +104,13 @@
 *
 */
 
-// SEND CONSOLE AND TERMINAL
-#define LOG_CANCEL_NOT_MONITORED(curr_cmd, log_fd) do{ \
+#define LOG_CANCEL_NOT_MONITORED(curr_cmd, write_sock) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
-        "[%s] Directory not being synchronized: /%s/\n", \
+        "[%s] Directory not being synchronized: %s/\n", \
         get_current_time_str(), \
         (curr_cmd).cancel_dir); \
-    write(log_fd, log_buffer, strlen(log_buffer)); \
+    write((write_sock), log_buffer, strlen(log_buffer)); \
     write(1, log_buffer, strlen(log_buffer)); \
 } while(0)
 

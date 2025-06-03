@@ -43,7 +43,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     for(int i = 0; i < total_src_files; i++){
         if(task_exists_add(queue_tasks, file_buff[i], curr_cmd) == TRUE){
             
-            ALREADY_IN_QUEUE_LOG(curr_cmd, file_buff[i], fd_log);
+            ALREADY_IN_QUEUE_LOG(curr_cmd, file_buff[i], write_sock);
             continue;
         }
 
