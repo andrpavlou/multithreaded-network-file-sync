@@ -42,10 +42,10 @@
 #define LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
-        "[%s] [%s@%s:%d] [%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
+        "[%s] [%s/%s@%s:%d] [%s/%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
         get_current_time_str(), \
-        (curr_task)->manager_cmd.source_dir, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port, \
-        (curr_task)->manager_cmd.target_dir, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
+        (curr_task)->manager_cmd.source_dir, (curr_task)->filename, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port, \
+        (curr_task)->manager_cmd.target_dir, (curr_task)->filename, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
         pthread_self(), \
         "PULL", \
         "SUCCESS", \
@@ -55,14 +55,30 @@
 } while(0)
 
 
+#define LOG_PULL_ERROR(curr_task, err_buff, log_fd) do{ \
+    char log_buffer[BUFSIZ * 4];    \
+    int log_len = snprintf(log_buffer, sizeof(log_buffer), \
+                    "[%s] [%s/%s@%s:%d] [%s/%s@%s:%d] [%ld] [%s] [%s] [File: %s %s]\n", \
+                    get_current_time_str(), \
+                    (curr_task)->manager_cmd.source_dir, (curr_task)->filename, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port, \
+                    (curr_task)->manager_cmd.target_dir, (curr_task)->filename, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
+                    pthread_self(), \
+                    "PULL", \
+                    "ERROR", \
+                    (curr_task)->filename, \
+                    (err_buff)); \
+    write(fd_log, log_buffer, log_len); \
+} while(0)
+
+
 
 #define LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
-        "[%s] [%s@%s:%d] [%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
+        "[%s] [%s/%s@%s:%d] [%s/%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
         get_current_time_str(), \
-        (curr_task)->manager_cmd.source_dir, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port, \
-        (curr_task)->manager_cmd.target_dir, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
+        (curr_task)->manager_cmd.source_dir, (curr_task)->filename, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port, \
+        (curr_task)->manager_cmd.target_dir, (curr_task)->filename, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
         pthread_self(), \
         "PUSH", \
         "SUCCESS", \
@@ -124,6 +140,17 @@
         (curr_task)->manager_cmd.cancel_dir, (curr_task)->filename, (curr_task)->manager_cmd.source_ip, (curr_task)->manager_cmd.source_port); \
     write(log_fd, log_buffer, strlen(log_buffer)); \
     write(1, log_buffer, strlen(log_buffer)); \
+} while(0)
+
+
+////////////////// CONSOLE LOGS //////////////////
+
+#define LOG_CONSOLE_COMMANDS(read_b, console_buffer, fd_log) do{ \
+    char console_log[BUFFSIZ * 2]; \
+    if((read_b)){ \
+        int console_log_len = snprintf(console_log, sizeof(console_log), "[%s] Command %s\n", get_current_time_str(), (console_buffer)); \
+        write((fd_log), (console_log), console_log_len); \
+    } \
 } while(0)
 
 #endif

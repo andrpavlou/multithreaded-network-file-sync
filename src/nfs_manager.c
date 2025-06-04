@@ -184,15 +184,26 @@ void *thread_exec_task(void *arg){
             
             long file_size = 0;
             if((file_size = get_file_size_of_host(sock_source_read)) == -1){
-                perror("get_file_size_of_host");
-             
+                char err_buff[BUFFSIZ];
+
+                int len = read_next_line_from_fd(sock_source_read, err_buff, sizeof(err_buff));
+                err_buff[len - 1] = '\0';
+            
+                LOG_PULL_ERROR(curr_task, err_buff, fd_log);
+
                 CLEANUP(sock_target_push, sock_source_read, curr_task);
                 continue;
             }
 
             if(file_size == 0){
                 bool is_first_write = TRUE;
-                send_push_header_generic(sock_target_push, &is_first_write, file_size, curr_task->manager_cmd.target_dir, curr_task->filename);
+                int status = send_push_header_generic(sock_target_push, &is_first_write, file_size, curr_task->manager_cmd.target_dir, curr_task->filename);
+                if(status){
+                    perror("send push header");
+                } else {
+                    LOG_PUSH_SUCCESS(curr_task, (ssize_t) 0, fd_log);
+                }
+
                 CLEANUP(sock_target_push, sock_source_read, curr_task);
                 continue;
             }
@@ -242,38 +253,6 @@ void *thread_exec_task(void *arg){
     return NULL;
 }
 
-
-int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs, 
-    int fd_log, int write_sock){
-    for(int i = 0; i < total_config_pairs; i++){
-        manager_command conf_cmd;
-        conf_cmd.op = ADD;
-
-        strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
-        conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
-
-        strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
-        conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
-
-        conf_cmd.source_port = conf_pairs[i].source_port;
-
-        strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
-        conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
-
-        strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
-        conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
-
-        conf_cmd.target_port = conf_pairs[i].target_port;
-
-
-        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log, write_sock);
-        if(status){
-            perror("enqueue enqueue ");
-            return 1;
-        }
-    }
-    return 0;
-}
 
 
 

@@ -199,3 +199,37 @@ int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_pu
     }
     return 0;
 }
+
+
+
+int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info_head, sync_task_ts *queue_task, config_pairs *conf_pairs, 
+    int fd_log, int write_sock){
+    for(int i = 0; i < total_config_pairs; i++){
+        manager_command conf_cmd;
+        conf_cmd.op = ADD;
+
+        strncpy(conf_cmd.source_dir, conf_pairs[i].source_dir_path, BUFFSIZ - 1);
+        conf_cmd.source_dir[BUFFSIZ - 1] = '\0';
+
+        strncpy(conf_cmd.source_ip, conf_pairs[i].source_ip, BUFFSIZ / 4 - 1);
+        conf_cmd.source_ip[BUFFSIZ / 4 - 1] = '\0';
+
+        conf_cmd.source_port = conf_pairs[i].source_port;
+
+        strncpy(conf_cmd.target_dir, conf_pairs[i].target_dir_path, BUFFSIZ - 1);
+        conf_cmd.target_dir[BUFFSIZ - 1] = '\0';
+
+        strncpy(conf_cmd.target_ip, conf_pairs[i].target_ip, BUFFSIZ / 4 - 1);
+        conf_cmd.target_ip[BUFFSIZ / 4 - 1] = '\0';
+
+        conf_cmd.target_port = conf_pairs[i].target_port;
+
+
+        int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log, write_sock);
+        if(status){
+            perror("enqueue enqueue ");
+            return 1;
+        }
+    }
+    return 0;
+}

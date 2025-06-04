@@ -1,4 +1,5 @@
 #include <sys/select.h>
+#include "logging_defs.h"
 #include "common.h"
 #include "utils.h"
 
@@ -19,7 +20,7 @@ ssize_t read_line_manager(int sock, char *buffer, size_t max_len) {
         if(read_b < 0)  return -1;
 
         buffer[total_read++] = c;
-    } while (total_read < max_len - 1 && c != '\n');
+    }while(total_read < max_len - 1 && c != '\n');
       
     buffer[total_read] = '\0';
     return total_read;
@@ -57,16 +58,24 @@ int main(int argc, char* argv[]){
     sa.sa_flags = 0; 
     sigaction(SIGINT, &sa, NULL);
     
-
+    
     if(check_args_console(argc, argv, &logfile, &host_ip, &host_port)){
         perror("Usage: ./nfs_console -l <console-logfile> -h <host_IP> -p <host_port>");
         return 1;
     }
     
+    int fd_log;
+    if((fd_log = open(logfile, O_CREAT | O_WRONLY | O_TRUNC, 0664)) == -1){
+        perror("open");
+        return 1;
+    }
+
     int socket_host_manager;
     if(establish_connection(&socket_host_manager, host_ip, host_port)){
         perror("establish con");
-        exit(1);
+        
+        close(fd_log);
+        return 1;
     }
 
     
@@ -79,20 +88,25 @@ int main(int argc, char* argv[]){
             perror("read");
             continue;
         }
+        
         console_buffer[strcspn(console_buffer, "\n")] = '\0';
-
+        LOG_CONSOLE_COMMANDS(read_b, console_buffer, fd_log);
 
         ssize_t write_b = write_all(socket_host_manager, console_buffer, read_b);
         if(write_b == -1){
             perror("write");
         }
 
-        if(!strncasecmp(console_buffer, "shutdown", 9)) console_active = 0;
+        if(!strncasecmp(console_buffer, "shutdown", 9)){
+            console_active = 0;
+            continue;
+        } 
 
         read_from_manager(socket_host_manager);
     }
 
     printf("exiting\n");
+    close(fd_log);
     close(socket_host_manager);
     return 0;
 }

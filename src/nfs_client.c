@@ -210,7 +210,8 @@ int exec_command(client_command cmd, int newsock){
     if(cmd.op == PULL){
         int fd_file_read = 0;
         if((fd_file_read = open(cmd.path, O_RDONLY)) == -1){
-            char error_msg[] = "-1\n";
+            char error_msg[BUFFSIZ];
+            snprintf(error_msg, sizeof(error_msg), "-1 %s\n", strerror(errno));
 
             write_all(newsock, error_msg, strlen(error_msg));
             close(fd_file_read);

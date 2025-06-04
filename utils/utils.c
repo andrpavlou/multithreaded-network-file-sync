@@ -20,7 +20,7 @@ static inline int create_dir(const char *path){
     return 0;
 }
 
-int read_next_line_from_file(int fd, char *line, int max_len){
+int read_next_line_from_fd(int fd, char *line, int max_len){
     static char buffer[BUFFSIZ];
     static int buffer_pos = 0;
     static int buffer_len = 0;
@@ -134,7 +134,7 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
     int curr_line = 0;
     
     // parse the config file line by line 
-    while(read_next_line_from_file(fd_config, line, sizeof(line)) > 0) {
+    while(read_next_line_from_fd(fd_config, line, sizeof(line)) > 0) {
         line[strcspn(line, "\n")] = '\0'; // replace the newlines with '\0'
 
         // src dir and path are split with a space
