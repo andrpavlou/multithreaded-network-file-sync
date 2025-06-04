@@ -1,6 +1,5 @@
 #include <fcntl.h>
 #include <signal.h> 
-#include <ctype.h>
 #include <stdlib.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -18,10 +17,6 @@
 
 
 
-
-
-void print_queue(sync_task_ts *task);
-
 volatile sig_atomic_t manager_active = 1;
 
 
@@ -30,85 +25,6 @@ void handle_sigint(int sig){
 }
 
 
-int parse_console_command(const char* buffer, manager_command *full_command, char **source_full_path, char **target_full_path){
-
-    if(!strncasecmp(buffer, "CANCEL", 6)){
-        full_command->op = CANCEL;
-
-        buffer += 6; // Move past cancel "cancel"
-        while(isspace(*buffer)) buffer++; // Skip spaces between CANCEL and PATH in case more exist
-        
-        char temp[BUFSIZ];
-        strncpy(temp, buffer, BUFSIZ - 1);
-        temp[strcspn(temp, "\n")] = '\0';   // remove newline
-
-
-        char *src_token = strtok(temp, " ");
-        // If the current first_token is null or more text exists after first_token with spaces we should return error
-        if((*source_full_path) == NULL || strtok(NULL, " ") != NULL) return 1;
-        (*source_full_path) = strdup(src_token);
-
-        strncpy(full_command->cancel_dir, (*source_full_path), BUFFSIZ - 1);
-
-        full_command->source_ip[BUFFSIZ - 1] = '\0';
-        full_command->target_ip[0] = '\0';
-
-        (*target_full_path) = NULL;
-        return 0;
-    }
-
-
-    if(!strncasecmp(buffer, "ADD", 3)){
-        full_command->op = ADD;
-
-        buffer += 3;                        // Move past cancel "add"
-        while(isspace(*buffer)) buffer++;   // Skip spaces between add and source in case more exist
-        
-        char temp[BUFSIZ];
-        strncpy(temp, buffer, BUFSIZ - 1);
-        temp[strcspn(temp, "\n")] = '\0';   // remove newline
-
-
-        char *src_token = strtok(temp, " ");  // Source path
-        if(src_token == NULL) return 1;
-        *source_full_path = strdup(src_token);
-
-
-        int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
-        if(status == -1){
-            perror("parse path target");
-        }
-        full_command->source_ip[BUFFSIZ - 1] = '\0';
-
-        
-        char *tgt_token = strtok(NULL, " "); // Target path
-        if(tgt_token == NULL){
-            free(*source_full_path);
-            return 1;  
-        }
-        *target_full_path = strdup(tgt_token);
-
-        
-        parse_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
-        full_command->target_ip[BUFFSIZ - 1] = '\0';
-
-        char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
-        if(end != NULL) return 1;
-        
-        return 0;
-    }
-
-    if(!strncasecmp(buffer, "SHUTDOWN", 8)){
-        full_command->op = SHUTDOWN;
-
-        full_command->source_ip[0] = '\0';
-        full_command->target_ip[0] = '\0';
-
-        return 0;
-    }
-
-    return 1;
-}
 
 typedef struct {
     sync_task_ts *queue;
@@ -120,8 +36,10 @@ typedef struct {
 void *thread_exec_task(void *arg){
     thread_args *args = (thread_args*) arg;
     sync_task_ts *queue_tasks = args->queue;
+    
     int fd_log          = args->log_fd;
     int write_socket    = args->write_console_sock;
+
     free(args);
 
     
@@ -155,7 +73,6 @@ void *thread_exec_task(void *arg){
             if(atomic_fetch_sub(&queue_tasks->cancel_cmd_counter, 1) == 1){
                 write(write_socket, "END\n", 4);
             }
-
 
             free(curr_task);
             continue;
@@ -260,7 +177,6 @@ void *thread_exec_task(void *arg){
 
 
 
-
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
 int main(int argc, char *argv[]){
     char *logfile       = NULL;
@@ -343,7 +259,6 @@ int main(int argc, char *argv[]){
     printf("Listening for connections to port % d \n", port);
     
 
-
     socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
     if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
@@ -352,7 +267,7 @@ int main(int argc, char *argv[]){
     }
 
 
-    atomic_int conf_pairs_sync = 0;
+    bool conf_pairs_sync = FALSE;
 
     // Thread pool, ready to execute tasks
     pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
@@ -367,9 +282,9 @@ int main(int argc, char *argv[]){
     }
 
 
-    if(!conf_pairs_sync){
+    if(conf_pairs_sync == FALSE){
         enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs, fd_log, -1);
-        conf_pairs_sync = 1;
+        conf_pairs_sync = TRUE;
     }
     
     printf("Accepted connection \n") ;
@@ -414,97 +329,34 @@ int main(int argc, char *argv[]){
             free(source_full_path);
         }
 
-        if(curr_cmd.op == SHUTDOWN){
-            manager_active = 0;
-            continue;
-        }
-
+        if(curr_cmd.op == SHUTDOWN) manager_active = 0;
     }
 
+    LOG_MANAGER_SHUTDOWN_SEQUENCE(socket_console_read); 
+
+
+    // *********** QUEUE THE POISON PILLS *********** //
     for(int i = 0; i < worker_limit; i++){
-        sync_task *shutdown_task = malloc(sizeof(sync_task));
+        sync_task *shutdown_task = calloc(1, sizeof(sync_task));
         shutdown_task->manager_cmd.op = SHUTDOWN;
-    
-        shutdown_task->node                         = NULL;
-        shutdown_task->filename[0]                  = '\0';
-        shutdown_task->manager_cmd.full_path[0]     = '\0';
-        shutdown_task->manager_cmd.source_ip[0]     = '\0';
-        shutdown_task->manager_cmd.target_ip[0]     = '\0';
-        shutdown_task->manager_cmd.source_dir[0]    = '\0';
-        shutdown_task->manager_cmd.target_dir[0]    = '\0';
-        shutdown_task->manager_cmd.cancel_dir[0]    = '\0';
 
         enqueue_task(&queue_tasks, shutdown_task);
     }
 
-    printf("\n exiting \n");
     for(int i = 0; i < worker_limit; i++){
         pthread_join(worker_th[i], NULL);
     }
-    
 
+    LOG_MANAGER_SHUTDOWN_FINAL(socket_console_read);
 
     close(fd_log);
     free(conf_pairs);
     free(worker_th);
     close(socket_manager);
     close(socket_console_read);
-    free(queue_tasks.tasks_array);
+    free_queue_task(&queue_tasks);
     free_all_sync_info(&sync_info_head);
 
-
+    
     return 0;
 }
-
-
-
-
-static const char* cmd_to_str(manager_command cmd){
-    if(cmd.op == ADD)       return "ADD";
-    if(cmd.op == CANCEL)    return "CANCEL";
-    if(cmd.op == SHUTDOWN)  return "SHUTDOWN";
-    
-    return "INVALID";
-}
-
-
-void print_queue(sync_task_ts *task){
-    if(!task){
-        printf("NULL task\n");
-        return;
-    }
-    printf("Atomic Counter: %d\n", task->cancel_cmd_counter);
-    for(int i = 0; i < task->size; i++){
-        int index = (task->head + i) % task->buffer_slots;
-        sync_task *curr_task = task->tasks_array[index];
-
-        printf("Operation\t: %s\n", cmd_to_str(curr_task->manager_cmd));
-        if(curr_task->manager_cmd.op == ADD){
-            printf("Filename\t: %s\n", curr_task->filename);
-            printf("Source Dir\t: %s\n", curr_task->manager_cmd.source_dir);
-            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
-            printf("Target Dir\t: %s\n", curr_task->manager_cmd.target_dir);
-            printf("Target IP\t: %s\n", curr_task->manager_cmd.target_ip);
-            printf("Target Port\t: %d\n", curr_task->manager_cmd.target_port);
-        }
-
-
-        if(curr_task->manager_cmd.op == CANCEL){
-            printf("Source Dir\t: %s\n", curr_task->manager_cmd.cancel_dir);
-            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
-        }
-
-
-        if(curr_task->node){
-            printf("Sync Info:\n");
-            printf("  Source\t: %s\n", curr_task->node->source);
-            printf("  Target\t: %s\n", curr_task->node->target);
-        } else {
-            printf("Sync Info: NULL\n");
-        }
-        printf("----------------------------------\n");
-    }
-}
-

@@ -123,8 +123,10 @@ int main(int argc, char* argv[]){
     }
     
 
-    printf("exiting\n");
+    read_from_manager(socket_host_manager);
+    
     close(fd_log);
     close(socket_host_manager);
+    
     return 0;
 }

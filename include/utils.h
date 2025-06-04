@@ -3,7 +3,7 @@
 
 #include "common_defs.h"
 #include <sys/types.h>
-
+#include "nfs_manager_def.h"
 
 
 int line_counter_of_file(int fd, int max_len);
@@ -12,6 +12,8 @@ int read_next_line_from_fd(int fd, char *line, int max_len);
 int check_args_manager(int argc, char *argv[], char** logfile, char** config_file, int *worker_limit, int *port, int *buffer_size);
 int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, int *port);
 char* get_current_time_str(void);
+int parse_console_command(const char* buffer, manager_command *full_command, char **source_full_path, char **target_full_path);
+
 
 //////////// TODO: socket related must add these to other modules
 int establish_connection(int *sock, const char *ip, const int port);

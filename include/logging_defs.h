@@ -155,4 +155,35 @@
     } \
 } while(0)
 
+
+
+////////////////// MANAGER EXIT //////////////////
+
+#define LOG_MANAGER_SHUTDOWN_SEQUENCE(write_socket)do{ \
+    char log_buf[256]; \
+    snprintf(log_buf, sizeof(log_buf), "[%s] Shutting down manager...\n", get_current_time_str()); \
+    write(write_socket, log_buf, strlen(log_buf)); \
+    write(1, log_buf, strlen(log_buf)); \
+    \
+    snprintf(log_buf, sizeof(log_buf), "[%s] Waiting for all active workers to finish.\n", get_current_time_str()); \
+    write(write_socket, log_buf, strlen(log_buf)); \
+    write(1, log_buf, strlen(log_buf)); \
+    \
+    snprintf(log_buf, sizeof(log_buf), "[%s] Processing remaining queued tasks.\n", get_current_time_str()); \
+    write(write_socket, log_buf, strlen(log_buf)); \
+    write(1, log_buf, strlen(log_buf)); \
+} while(0)
+
+
+#define LOG_MANAGER_SHUTDOWN_FINAL(write_socket)do{ \
+    char log_buf[256]; \
+    snprintf(log_buf, sizeof(log_buf), "[%s] Manager shutdown complete.\n", get_current_time_str()); \
+    write(write_socket, log_buf, strlen(log_buf)); \
+    write(1, log_buf, strlen(log_buf)); \
+    \
+    write(write_socket, "END\n", 4); \
+} while(0)
+
+
+
 #endif

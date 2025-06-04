@@ -1,5 +1,3 @@
-#include "utils.h"
-
 #include <sys/types.h>
 #include <sys/stat.h>   
 #include <unistd.h>     
@@ -9,6 +7,10 @@
 #include <stdio.h>      
 #include <errno.h>
 #include <time.h>
+#include <ctype.h>
+
+#include "utils.h"
+
 
 static inline int create_dir(const char *path){
     struct stat st = {0};
@@ -230,6 +232,86 @@ int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, i
     return 0;
 }
 
+
+int parse_console_command(const char* buffer, manager_command *full_command, char **source_full_path, char **target_full_path){
+
+    if(!strncasecmp(buffer, "CANCEL", 6)){
+        full_command->op = CANCEL;
+
+        buffer += 6; // Move past cancel "cancel"
+        while(isspace(*buffer)) buffer++; // Skip spaces between CANCEL and PATH in case more exist
+        
+        char temp[BUFSIZ];
+        strncpy(temp, buffer, BUFSIZ - 1);
+        temp[strcspn(temp, "\n")] = '\0';   // remove newline
+
+
+        char *src_token = strtok(temp, " ");
+        // If the current first_token is null or more text exists after first_token with spaces we should return error
+        if((*source_full_path) == NULL || strtok(NULL, " ") != NULL) return 1;
+        (*source_full_path) = strdup(src_token);
+
+        strncpy(full_command->cancel_dir, (*source_full_path), BUFFSIZ - 1);
+
+        full_command->source_ip[BUFFSIZ - 1] = '\0';
+        full_command->target_ip[0] = '\0';
+
+        (*target_full_path) = NULL;
+        return 0;
+    }
+
+
+    if(!strncasecmp(buffer, "ADD", 3)){
+        full_command->op = ADD;
+
+        buffer += 3;                        // Move past cancel "add"
+        while(isspace(*buffer)) buffer++;   // Skip spaces between add and source in case more exist
+        
+        char temp[BUFSIZ];
+        strncpy(temp, buffer, BUFSIZ - 1);
+        temp[strcspn(temp, "\n")] = '\0';   // remove newline
+
+
+        char *src_token = strtok(temp, " ");  // Source path
+        if(src_token == NULL) return 1;
+        *source_full_path = strdup(src_token);
+
+
+        int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        if(status == -1){
+            perror("parse path target");
+        }
+        full_command->source_ip[BUFFSIZ - 1] = '\0';
+
+        
+        char *tgt_token = strtok(NULL, " "); // Target path
+        if(tgt_token == NULL){
+            free(*source_full_path);
+            return 1;  
+        }
+        *target_full_path = strdup(tgt_token);
+
+        
+        parse_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
+        full_command->target_ip[BUFFSIZ - 1] = '\0';
+
+        char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
+        if(end != NULL) return 1;
+        
+        return 0;
+    }
+
+    if(!strncasecmp(buffer, "SHUTDOWN", 8)){
+        full_command->op = SHUTDOWN;
+
+        full_command->source_ip[0] = '\0';
+        full_command->target_ip[0] = '\0';
+
+        return 0;
+    }
+
+    return 1;
+}
 
 //////////// TODO: CREATE MORE MODULES FOR THESE
 // Handles the errors -> no need for closing the socket after error
