@@ -44,7 +44,7 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
     new_node->target[sizeof(new_node->target) - 1] = '\0';
     
 
-    new_node->next          = NULL;
+    new_node->next = NULL;
 
     if(*head == NULL){
         (*head) = new_node;
@@ -83,6 +83,7 @@ sync_info_mem_store* find_sync_info(sync_info_mem_store* head, const char* sourc
     }
 
     while(found != NULL && (strcmp(found->source, source) || strcmp(found->target, target))){
+        
         found = found->next;
     }
 

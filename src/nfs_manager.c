@@ -43,11 +43,10 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         temp[strcspn(temp, "\n")] = '\0';   // remove newline
 
 
-        (*source_full_path) = strtok(temp, " ");
-        // If the current first_token is null or more text exists after first_token with spaces
-        // we should return error
+        char *src_token = strtok(temp, " ");
+        // If the current first_token is null or more text exists after first_token with spaces we should return error
         if((*source_full_path) == NULL || strtok(NULL, " ") != NULL) return 1;
-
+        (*source_full_path) = strdup(src_token);
 
         strncpy(full_command->cancel_dir, (*source_full_path), BUFFSIZ - 1);
 
@@ -70,8 +69,10 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         temp[strcspn(temp, "\n")] = '\0';   // remove newline
 
 
-        (*source_full_path) = strtok(temp, " ");  // Source path
-        if((*source_full_path) == NULL) return 1;
+        char *src_token = strtok(temp, " ");  // Source path
+        if(src_token == NULL) return 1;
+        *source_full_path = strdup(src_token);
+
 
         int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
         if(status == -1){
@@ -80,8 +81,12 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         full_command->source_ip[BUFFSIZ - 1] = '\0';
 
         
-        (*target_full_path) = strtok(NULL, " "); // Target path
-        if((*target_full_path) == NULL) return 1;
+        char *tgt_token = strtok(NULL, " "); // Target path
+        if(tgt_token == NULL){
+            free(*source_full_path);
+            return 1;  
+        }
+        *target_full_path = strdup(tgt_token);
 
         
         parse_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
@@ -392,8 +397,11 @@ int main(int argc, char *argv[]){
             int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log, socket_console_read);
             if(status){
                 perror("enqueue add");
-                continue;
             }
+
+            free(source_full_path);
+            free(target_full_path);
+
             write(socket_console_read, "END\n", 4);
         }
 
@@ -402,8 +410,8 @@ int main(int argc, char *argv[]){
             if(status){
                 LOG_CANCEL_NOT_MONITORED(curr_cmd, socket_console_read);
                 write(socket_console_read, "END\n", 4);
-                continue;
             }
+            free(source_full_path);
         }
 
         if(curr_cmd.op == SHUTDOWN){

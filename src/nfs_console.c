@@ -119,9 +119,9 @@ int main(int argc, char* argv[]){
             console_active = 0;
             continue;
         } 
-
         read_from_manager(socket_host_manager);
     }
+    
 
     printf("exiting\n");
     close(fd_log);

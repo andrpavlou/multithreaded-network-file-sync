@@ -65,7 +65,8 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
         free(found_hosts[i]);
         fflush(stdout);
     }
-    printf("\n--------------------\n");
+
+    free(found_hosts);
     fflush(stdout);
 
     return 0;
