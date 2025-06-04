@@ -3,35 +3,37 @@
 
 
 
+
 ////////////////// ADD QUEUE LOGS //////////////////
-#define ADDED_FILE_LOG(new_task, fd_log, write_sock) do{                                                    \
-    char log_buffer[BUFSIZ * 8];                                                                \
-    snprintf(log_buffer, sizeof(log_buffer), "[%s] Added file: %s/%s@%s:%d -> %s/%s@%s:%d\n",   \
-        get_current_time_str(),                                                                 \
-        (new_task)->manager_cmd.source_dir,                                                     \
-        (new_task)->filename,                                                                   \
-        (new_task)->manager_cmd.source_ip,                                                      \
-        (new_task)->manager_cmd.source_port,                                                    \
-        (new_task)->manager_cmd.target_dir,                                                     \
-        (new_task)->filename,                                                                   \
-        (new_task)->manager_cmd.target_ip,                                                      \
-        (new_task)->manager_cmd.target_port);                                                   \
-    write(1, log_buffer, strlen(log_buffer));                                                   \
-    write((fd_log), log_buffer, strlen(log_buffer));                                            \
-    if((write_sock) != -1) write((write_sock), log_buffer, strlen(log_buffer));                 \
+
+#define ADDED_FILE_LOG(new_task, fd_log, write_sock) do{ \
+    char log_buffer[BUFSIZ * 8]; \
+    snprintf(log_buffer, sizeof(log_buffer), "[%s] Added file: %s/%s@%s:%d -> %s/%s@%s:%d\n", \
+        get_current_time_str(), \
+        (new_task)->manager_cmd.source_dir, \
+        (new_task)->filename, \
+        (new_task)->manager_cmd.source_ip, \
+        (new_task)->manager_cmd.source_port, \
+        (new_task)->manager_cmd.target_dir, \
+        (new_task)->filename, \
+        (new_task)->manager_cmd.target_ip, \
+        (new_task)->manager_cmd.target_port); \
+    write(1, log_buffer, strlen(log_buffer)); \
+    write((fd_log), log_buffer, strlen(log_buffer)); \
+    if((write_sock) != -1) write((write_sock), log_buffer, strlen(log_buffer)); \
 } while(0)
 
 
-#define ALREADY_IN_QUEUE_LOG(curr_cmd, filename, write_sock) do{                                    \
-    char log_buffer[BUFSIZ * 4];                                                                \
-    snprintf(log_buffer, sizeof(log_buffer), "[%s] Already in queue: %s/%s@%s:%d\n",            \
-        get_current_time_str(),                                                                 \
-        (curr_cmd).source_dir,                                                                  \
-        (filename),                                                                             \
-        (curr_cmd).source_ip,                                                                   \
-        (curr_cmd).source_port);                                                                \
-    write(1, log_buffer, strlen(log_buffer));                                                   \
-    write((write_sock), log_buffer, strlen(log_buffer));                                            \
+#define ALREADY_IN_QUEUE_LOG(curr_cmd, filename, write_sock) do{ \
+    char log_buffer[BUFSIZ * 4];  \
+    snprintf(log_buffer, sizeof(log_buffer), "[%s] Already in queue: %s/%s@%s:%d\n",  \
+        get_current_time_str(),  \
+        (curr_cmd).source_dir,  \
+        (filename),  \
+        (curr_cmd).source_ip,  \
+        (curr_cmd).source_port);  \
+    write(1, log_buffer, strlen(log_buffer)); \
+    write((write_sock), log_buffer, strlen(log_buffer)); \
 } while(0)
 
 

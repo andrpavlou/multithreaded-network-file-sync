@@ -5,23 +5,6 @@
 #include <sys/types.h>
 
 
-typedef struct {
-    char source_full_path[BUFFSIZ];
-    char target_full_path[BUFFSIZ];
-    
-    pid_t worker_pid;
-
-    char source_dir_path[BUFFSIZ];
-    char source_ip[BUFFSIZ / 4];
-    int source_port;
-
-    char target_dir_path[BUFFSIZ];
-    char target_ip[BUFFSIZ / 4];
-    int target_port;
-
-} config_pairs;
-
-
 
 int line_counter_of_file(int fd, int max_len);
 int create_cf_pairs(int fd_config, config_pairs *conf_pairs);

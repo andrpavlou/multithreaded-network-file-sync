@@ -44,11 +44,6 @@ sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* sourc
     new_node->target[sizeof(new_node->target) - 1] = '\0';
     
 
-    new_node->active        = 0;
-    new_node->error_count   = 0;
-    new_node->last_sync     = 0;
-    new_node->worker_pid    = -1;
-    new_node->last_sync     = 0;
     new_node->next          = NULL;
 
     if(*head == NULL){

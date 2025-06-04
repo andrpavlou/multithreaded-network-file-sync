@@ -1,26 +1,26 @@
+#include <fcntl.h>
+#include <signal.h> 
+#include <ctype.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "utils.h"
 #include "sync_task.h"
 #include "sync_info.h"
 #include "nfs_manager_def.h"
-#include "common.h"
 #include "common_defs.h"
 #include "add_cmd.h"
 #include "cancel_cmd.h"
 #include "logging_defs.h"
 
 
-/*
-  socket()
-    |
-  connect() 
-    |
-  write()
-    |
-  read()
-*/
+
+
 
 void print_queue(sync_task_ts *task);
-// void remove_add_jobs(sync_task_ts *task, sync_task *cancel_task);
 
 volatile sig_atomic_t manager_active = 1;
 
@@ -252,7 +252,6 @@ void *thread_exec_task(void *arg){
     }
     return NULL;
 }
-
 
 
 

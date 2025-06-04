@@ -15,7 +15,7 @@ typedef struct {
     client_operation op;
     char path[BUFFSIZ];      // list + pull: dir for push
     char data[BUFFSIZ];      // push
-    int chunk_size;         // push
+    int chunk_size;          // push
 } client_command;
 
 struct linux_dirent64 {

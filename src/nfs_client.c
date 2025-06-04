@@ -1,9 +1,21 @@
 #define _GNU_SOURCE
 
+#include <stdlib.h>
+#include <pthread.h>
+#include <errno.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <signal.h> /* signal */
+#include <netdb.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+
 #include "utils.h"
-#include "common.h"
 #include "common_defs.h"
 #include "nfs_client_def.h"
+
 
 /*
      socket()

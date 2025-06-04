@@ -146,7 +146,6 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
 
         conf_pairs[curr_line].source_full_path[BUFFSIZ - 1] = '\0';
         conf_pairs[curr_line].target_full_path[BUFFSIZ - 1] = '\0';
-        conf_pairs[curr_line].worker_pid = -1;
 
         parse_path(conf_pairs[curr_line].source_full_path,
                   conf_pairs[curr_line].source_dir_path,
@@ -169,7 +168,6 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
         //     return 1;
         // }
 
-        conf_pairs[curr_line].worker_pid = -1;
         curr_line++; 
     }
     return 0;

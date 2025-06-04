@@ -1,7 +1,25 @@
 #include <sys/select.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+
 #include "logging_defs.h"
-#include "common.h"
 #include "utils.h"
+
+
+/*
+  socket()
+    |
+  connect() 
+    |
+  write()
+    |
+  read()
+*/
+
 
 
 volatile sig_atomic_t console_active = 1;
