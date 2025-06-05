@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+#include <errno.h>
 
 
 
@@ -17,7 +17,10 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     int sock_source_read;
     if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
+        #ifdef debug
         perror("establish con");
+        #endif
+
         return 1;
     }   
 
@@ -27,13 +30,21 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     // //========== Request List Command ========== //
     if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
-        close(sock_source_read);
+        #ifdef debug
         perror("list write");
+        #endif
+
+        close(sock_source_read);
         return 1;
     }
 
     char *list_reply_buff = NULL;
-    read_list_response(sock_source_read, &list_reply_buff);
+    if(read_list_response(sock_source_read, &list_reply_buff)){
+        LOG_LIST_ERROR(curr_cmd, source_full_path, list_reply_buff, write_sock, fd_log);
+
+        free(list_reply_buff);
+        return 1;
+    };
 
 
     char *file_buff[MAX_FILES];
@@ -74,6 +85,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         strncpy(new_task->filename, file_buff[i], sizeof(new_task->filename) - 1);
         new_task->filename[sizeof(new_task->filename) - 1] = '\0';
 
+        new_task->manager_cmd.cancel_dir[0] = '\0';
+
         // Check if the source full path is already inserted and keep that node, otherwise just insert it
         sync_info_mem_store *find_node;
         if((find_node = find_sync_info((*sync_info_head), source_full_path, target_full_path)) != NULL){
@@ -86,7 +99,9 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         
         sync_info_mem_store *inserted_node = add_sync_info(sync_info_head, source_full_path, target_full_path);
         if(inserted_node == NULL){
+            #ifdef debug
             perror("sync info insert");    
+            #endif
             
             free(new_task);
             close(sock_source_read);
@@ -135,7 +150,10 @@ int send_header(const int sock_target_push, const bool is_first_write, int reque
                                                                                     write_batch_bytes);
 
     if(header_len < 0 || header_len >= (int)sizeof(header_buffer)){
+        #ifdef debug
         perror("header too long");
+        #endif
+
         return 1;
     }
     
@@ -189,12 +207,17 @@ int send_push_header_generic(int sock_target_push, bool *is_first_push, int requ
 // No need to close() after this fails
 int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_push, const sync_task *task){
     if(establish_connection(sock_source_read, task->manager_cmd.source_ip, task->manager_cmd.source_port)){
+        #ifdef debug
         perror("establish con source");
+        #endif
+
         return 1;
     }
     
     if(establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)){
+        #ifdef debug
         perror("establish con target");
+        #endif
         return 1;
     }
     return 0;
@@ -227,7 +250,9 @@ int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info
 
         int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log, write_sock);
         if(status){
+            #ifdef debug
             perror("enqueue enqueue ");
+            #endif
             return 1;
         }
     }

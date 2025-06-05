@@ -185,5 +185,21 @@
 } while(0)
 
 
+////////////////// LIST COMMAND ERROR //////////////////
+
+#define LOG_LIST_ERROR(curr_cmd, source_full_path, list_reply_buff, write_sock, fd_log) do { \
+    char log_buffer[BUFSIZ * 4]; \
+    snprintf(log_buffer, sizeof(log_buffer), \
+        "[%s] [%s] [LIST] [ERROR] [Directory: %s - %s]\n", \
+        get_current_time_str(), \
+        (source_full_path), \
+        (curr_cmd).source_dir, \
+        (list_reply_buff)); \
+    write((write_sock), log_buffer, strlen(log_buffer)); \
+    write((fd_log), log_buffer, strlen(log_buffer)); \
+    write(1, log_buffer, strlen(log_buffer)); \
+} while(0)
+
+
 
 #endif

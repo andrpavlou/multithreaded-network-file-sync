@@ -15,9 +15,10 @@
 #include "cancel_cmd.h"
 #include "logging_defs.h"
 
-
+#define DEBUG
 
 volatile sig_atomic_t manager_active = 1;
+void print_queue(sync_task_ts *task);
 
 
 void handle_sigint(int sig){
@@ -41,13 +42,14 @@ void *thread_exec_task(void *arg){
     int write_socket    = args->write_console_sock;
 
     free(args);
-
     
     while(manager_active || queue_tasks->size){
         sync_task *curr_task = dequeue_task(queue_tasks);
         if(curr_task == NULL){
+            #ifdef DEBUG
             perror("curr task is null");
             break;
+            #endif
         }
 
         if(curr_task->manager_cmd.op == SHUTDOWN){
@@ -98,7 +100,9 @@ void *thread_exec_task(void *arg){
             
             // Request pull of given file
             if(write_all(sock_source_read, pull_request_cmd_buff, len_pull_req) == -1){
+                #ifdef DEBUG
                 perror("pull write");
+                #endif
 
                 CLOSE_SOCKETS(sock_target_push, sock_source_read);
                 break;
@@ -121,7 +125,9 @@ void *thread_exec_task(void *arg){
                 bool is_first_write = TRUE;
                 int status = send_push_header_generic(sock_target_push, &is_first_write, file_size, curr_task->manager_cmd.target_dir, curr_task->filename);
                 if(status){
+                    #ifdef DEBUG
                     perror("send push header");
+                    #endif
                 } else {
                     LOG_PUSH_SUCCESS(curr_task, (ssize_t) 0, fd_log);
                 }
@@ -141,14 +147,18 @@ void *thread_exec_task(void *arg){
                 ssize_t request_bytes = MIN((file_size - total_write_push), BUFFSIZ - 1);
                 if(!request_bytes){
                     if(send_last_push_chunk(sock_target_push, curr_task->filename, curr_task->manager_cmd.target_dir)){
+                        #ifdef DEBUG
                         perror("send_last_push_chunk");
+                        #endif
                     }
                     break;
                 }
 
                 ssize_t n_read;
                 if((n_read = read_all(sock_source_read, pull_buffer, request_bytes)) == -1){
+                    #ifdef DEBUG
                     perror("\nread pull_buffer");
+                    #endif
                     break;
                 }
                 total_read_pull += n_read;
@@ -159,7 +169,10 @@ void *thread_exec_task(void *arg){
 
                 ssize_t write_b;
                 if((write_b = write_all(sock_target_push, pull_buffer, request_bytes)) == -1){
+                    #ifdef DEBUG
                     perror("write push");
+                    #endif
+
                     break;
                 }
                 
@@ -198,7 +211,9 @@ int main(int argc, char *argv[]){
 
     int fd_log;
     if((fd_log = open(logfile, O_WRONLY | O_TRUNC | O_CREAT), 0664) < 0){
+        #ifdef DEBUG
         perror("open logfile");
+        #endif
         return 1;
     }
 
@@ -212,8 +227,10 @@ int main(int argc, char *argv[]){
     // Config file parsing
     int fd_config;
     if((fd_config = open(config_file, O_RDONLY)) < 0){
+        #ifdef DEBUG
         perror("Config file open problem");
-        exit(3);
+        #endif
+        return 1;
     }
 
     int total_config_pairs = line_counter_of_file(fd_config, BUFFSIZ);
@@ -224,9 +241,11 @@ int main(int argc, char *argv[]){
     
     sync_task_ts queue_tasks;
     if(init_sync_task_ts(&queue_tasks, buffer_size)){
-        free(conf_pairs);
-
+        #ifdef DEBUG
         perror("init sync task");
+        #endif
+        
+        free(conf_pairs);
         return 1;
     }
 
@@ -239,8 +258,11 @@ int main(int argc, char *argv[]){
     struct sockaddr *clientptr = (struct sockaddr *) &client;
 
     int socket_manager = 0;
-    if((socket_manager = socket(AF_INET , SOCK_STREAM , 0)) < 0)
+    if((socket_manager = socket(AF_INET , SOCK_STREAM , 0)) < 0){
+        #ifdef DEBUG
         perror("socket");
+        #endif
+    }
     
     int optval = 1;
     setsockopt(socket_manager, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
@@ -251,18 +273,29 @@ int main(int argc, char *argv[]){
     
     /* Bind socket to address */
     if(bind(socket_manager, serverptr, sizeof(server)) < 0){
+        #ifdef DEBUG
         perror("bind");
-        exit(1);
+        #endif
+        
+        return 1;
     }
 
-    if(listen(socket_manager, 5) < 0) perror("listen");
+    if(listen(socket_manager, 5) < 0){
+        #ifdef DEBUG
+        perror("listen");
+        #endif
+        
+        return 1;
+    } 
     printf("Listening for connections to port % d \n", port);
     
-
     socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
     if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
+        #ifdef DEBUG
         perror("accept ");
+        #endif
+
         return 1;
     }
 
@@ -287,6 +320,7 @@ int main(int argc, char *argv[]){
         conf_pairs_sync = TRUE;
     }
     
+    
     printf("Accepted connection \n") ;
     while(manager_active){
 
@@ -295,15 +329,21 @@ int main(int argc, char *argv[]){
         
         ssize_t n_read;
         if((n_read = read(socket_console_read, read_buffer, BUFFSIZ - 1)) <= 0){
+            #ifdef DEBUG
             perror("Read from console");
+            #endif
             return 1;
         }
         read_buffer[n_read] = '\0';
 
         manager_command curr_cmd;
-        char *source_full_path, *target_full_path;
+        char *source_full_path = NULL;
+        char *target_full_path = NULL;
         if(parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)){
+            #ifdef DEBUG
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
+            #endif
+
             write(socket_console_read, "END\n", 4);
             continue;
         }
@@ -311,7 +351,9 @@ int main(int argc, char *argv[]){
         if(curr_cmd.op == ADD){
             int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log, socket_console_read);
             if(status){
+                #ifdef DEBUG
                 perror("enqueue add");
+                #endif
             }
 
             free(source_full_path);
@@ -326,6 +368,8 @@ int main(int argc, char *argv[]){
                 LOG_CANCEL_NOT_MONITORED(curr_cmd, socket_console_read);
                 write(socket_console_read, "END\n", 4);
             }
+
+            // Thread will send "END\n"
             free(source_full_path);
         }
 
@@ -359,4 +403,54 @@ int main(int argc, char *argv[]){
 
     
     return 0;
+}
+
+
+
+static const char* cmd_to_str(manager_command cmd){
+    if(cmd.op == ADD)       return "ADD";
+    if(cmd.op == CANCEL)    return "CANCEL";
+    if(cmd.op == SHUTDOWN)  return "SHUTDOWN";
+
+    return "INVALID";
+}
+
+void print_queue(sync_task_ts *task){
+    if(!task){
+        printf("NULL task\n");
+        return;
+    }
+    printf("Atomic Counter: %d\n", task->cancel_cmd_counter);
+    for(int i = 0; i < task->size; i++){
+        int index = (task->head + i) % task->buffer_slots;
+        sync_task *curr_task = task->tasks_array[index];
+
+        printf("Operation\t: %s\n", cmd_to_str(curr_task->manager_cmd));
+        if(curr_task->manager_cmd.op == ADD){
+            printf("Filename\t: %s\n", curr_task->filename);
+            printf("Source Dir\t: %s\n", curr_task->manager_cmd.source_dir);
+            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
+            printf("Target Dir\t: %s\n", curr_task->manager_cmd.target_dir);
+            printf("Target IP\t: %s\n", curr_task->manager_cmd.target_ip);
+            printf("Target Port\t: %d\n", curr_task->manager_cmd.target_port);
+        }
+
+
+        if(curr_task->manager_cmd.op == CANCEL){
+            printf("Source Dir\t: %s\n", curr_task->manager_cmd.cancel_dir);
+            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
+            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
+        }
+
+
+        if(curr_task->node){
+            printf("Sync Info:\n");
+            printf("  Source\t: %s\n", curr_task->node->source);
+            printf("  Target\t: %s\n", curr_task->node->target);
+        } else {
+            printf("Sync Info: NULL\n");
+        }
+        printf("----------------------------------\n");
+    }
 }

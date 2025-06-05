@@ -1,2 +1,1 @@
-source1@localhost:2323 source2@localhost:2424
-source1@localhost:2626 source2@localhost:2424
+source1@195.134.65.76:2323 source2@195.134.65.76:2424

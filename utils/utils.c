@@ -132,11 +132,12 @@ int parse_path(const char *full_path, char *dir_path, char *ip, int *port){
 
 
 int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
-    char line[BUFFSIZ];
+    char line[BUFFSIZ * 2];
     int curr_line = 0;
     
     // parse the config file line by line 
     while(read_next_line_from_fd(fd_config, line, sizeof(line)) > 0) {
+
         line[strcspn(line, "\n")] = '\0'; // replace the newlines with '\0'
 
         // src dir and path are split with a space
@@ -170,7 +171,7 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
         //     return 1;
         // }
 
-        curr_line++; 
+        curr_line++;
     }
     return 0;
 }
@@ -248,7 +249,7 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 
         char *src_token = strtok(temp, " ");
         // If the current first_token is null or more text exists after first_token with spaces we should return error
-        if((*source_full_path) == NULL || strtok(NULL, " ") != NULL) return 1;
+        if(src_token == NULL || strtok(NULL, " ") != NULL) return 1;
         (*source_full_path) = strdup(src_token);
 
         strncpy(full_command->cancel_dir, (*source_full_path), BUFFSIZ - 1);
@@ -414,14 +415,15 @@ int read_list_response(int sock, char **list_reply_buff){
             (*list_reply_buff)[list_buff_capacity - 1] = '\0';
         }
         ssize_t n_read = read(sock, *list_reply_buff + total_read_list, BUFFSIZ);
+        
         if(n_read <= 0){
-            perror("read");
+            *((*list_reply_buff) + total_read_list - 1) = '\0';
             return 1;
         }
 
         total_read_list += n_read;
         (*list_reply_buff)[total_read_list] = '\0';
-    } while(strstr((*list_reply_buff), "\n.") == NULL); // Keep reading until we receive '.\nACK\n'
+    } while(strstr((*list_reply_buff), "\n.") == NULL); // Keep reading until we receive '.\n'
 
     return 0;
 }

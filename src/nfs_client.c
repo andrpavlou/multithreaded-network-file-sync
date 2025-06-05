@@ -207,7 +207,13 @@ int exec_command(client_command cmd, int newsock){
         char src_files[MAX_FILES][BUFFSIZ];
         int src_files_count = get_filenames(clean_path, src_files);
 
-        if(src_files_count == -1) return -1;
+        if(src_files_count == -1){
+            char error_buf[BUFFSIZ];
+            int len = snprintf(error_buf, sizeof(error_buf), "%s.\n", strerror(errno));
+            
+            write(newsock, error_buf, len);
+            return -1;
+        } 
 
         for(int i = 0; i < src_files_count; i++){
             char output_buff[BUFFSIZ];
@@ -332,7 +338,6 @@ void* handle_connection(void* arg){
         }
 
         if(exec_command(current_cmd_struct, newsock)){
-            perror("exec command");
             break;
         }
         memset(read_buffer, 0, sizeof(read_buffer));
