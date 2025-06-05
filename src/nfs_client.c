@@ -45,7 +45,9 @@
     
     echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2424
     echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2424
-
+    
+    hostname -I
+    curl ifconfig.me
 */
 
 
@@ -82,15 +84,7 @@ ssize_t read_line(int socket, char *buffer, ssize_t max_read){
 
 volatile sig_atomic_t client_active = 1;
 
-// TODO: change this
-int arg_check(int argc, const char** argv, int *port){
-    if(argc != 3) return 1;
 
-    if(strncmp(argv[1], "-p", 2)) return 1;
-
-    *port = atoi(argv[2]);
-    return 0;
-}
 
 
 int parse_manager_command(const char* buffer, client_command *full_command){
@@ -133,7 +127,9 @@ int parse_manager_command(const char* buffer, client_command *full_command){
 
         full_command->chunk_size = atoi(token);
         if(full_command->chunk_size < -1 || full_command->chunk_size > BUFFSIZ){
+            #ifdef DEBUG
             perror("invalid chunk size sent");
+            #endif
             return 1;
         } 
 
@@ -161,7 +157,9 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
     
     int dir_fd = open(path, O_RDONLY | O_DIRECTORY);
     if(dir_fd == -1) {
+        #ifdef DEBUG
         perror("open dir");
+        #endif
         return -1;
     }
 
@@ -174,7 +172,6 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
             
             // Skip previous dir and pwd
             if(strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..")){
-                // printf("dir name: %s\n", dir->d_name);
                 strncpy(filenames[file_count], dir->d_name, BUFFSIZ - 1);
                 filenames[file_count][BUFFSIZ - 1] = '\0';
 
@@ -186,7 +183,9 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
     }
 
     if(nread == -1){
+        #ifdef DEBUG
         perror("getdents64");
+        #endif
         return -1;
     }
 
@@ -253,7 +252,9 @@ int exec_command(client_command cmd, int newsock){
         char buffer[BUFFSIZ];
         while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){
             if(write_all(newsock, buffer, read_bytes) == -1){
+                #ifdef DEBUG
                 perror("Write full");
+                #endif
                 
                 close(fd_file_read);
                 return -1;;
@@ -269,17 +270,14 @@ int exec_command(client_command cmd, int newsock){
     // just create the file if chunk size is -1
     if(cmd.op == PUSH && cmd.chunk_size == -1){
         int fd_file_write = open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666);
-
         
-        printf("FILENAME: %s\n", cmd.path);
         if(fd_file_write == -1){
+            #ifdef DEBUG
             perror("push open\n");
+            #endif
             return 1;
         }
-        // if(write(fd_file_write, cmd.data, 0) < 0){
-        //     perror("Invalid written bytes");
-        //     return 1;
-        // }
+
         close(fd_file_write);
         return 0;
     }
@@ -288,19 +286,25 @@ int exec_command(client_command cmd, int newsock){
         // Read the data becasue we send: PUSH file size\r\ndata
         // important because data might have \r\n in them
         if(read_all(newsock, cmd.data, cmd.chunk_size) < 0){
+            #ifdef DEBUG
             perror("read exec command for push");
+            #endif
             return 1;
         }
         int fd_file_write = open(cmd.path, O_WRONLY | O_APPEND);
         
         if(fd_file_write == -1){
+            #ifdef DEBUG
             perror("push open\n");
+            #endif
             return 1;
         }
 
         ssize_t write_bytes = write(fd_file_write, cmd.data, cmd.chunk_size);
         if(write_bytes != cmd.chunk_size){
+            #ifdef DEBUG
             perror("Invalid written bytes");
+            #endif
             return 1;
         }
 
@@ -328,12 +332,11 @@ void* handle_connection(void* arg){
     memset(read_buffer, 0, sizeof(read_buffer));
 
     while((n_read = read_line(newsock, read_buffer, sizeof(read_buffer))) > 0){
-        printf("Got line: [%s] Size [%ld]\n", read_buffer, n_read);
-        fflush(stdout);
-
         client_command current_cmd_struct;
         if(parse_manager_command(read_buffer, &current_cmd_struct)){
+            #ifdef DEBUG
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
+            #endif
             break;
         }
 
@@ -350,10 +353,9 @@ void* handle_connection(void* arg){
 
 
 
-// lsof -i :port
 int main(int argc, char* argv[]){
     int port = 0;   
-    if(arg_check(argc, (const char**)argv, &port)){
+    if(check_args_client(argc, (const char**)argv, &port)){
         perror("USAGE: ./nfs_client -p <port_number>");
         return 1;
     }
@@ -371,8 +373,12 @@ int main(int argc, char* argv[]){
     
 
     int sock = 0;
-    if((sock = socket(AF_INET , SOCK_STREAM , 0)) < 0)
+    if((sock = socket(AF_INET , SOCK_STREAM , 0)) < 0){
+        #ifdef DEBUG
         perror("socket");
+        #endif
+        
+    }
     
     int optval = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
@@ -384,28 +390,41 @@ int main(int argc, char* argv[]){
     
     /* Bind socket to address */
     if(bind(sock, serverptr, sizeof(server)) < 0){
+        #ifdef DEBUG
         perror("bind");
-        exit(1);
+        #endif
+        
+        return 1;
     }
 
-    if(listen(sock, 5) < 0)
-        perror (" listen ") ;
-    
+    if(listen(sock, 5) < 0){
+        #ifdef DEBUG
+        perror (" listen ");
+        #endif
+    }
+    #ifdef DEBUG
     printf("Listening for connections to port % d \n", port);
+    #endif
     socklen_t clientlen;
     while(client_active){
         clientlen = sizeof(struct sockaddr_in);
         int *newsock = malloc(sizeof(int));
 
         if((*newsock = accept(sock, clientptr, &clientlen)) < 0){
+            #ifdef DEBUG
             perror("accept ");
+            #endif
             continue;
         }
+        #ifdef DEBUG
         printf("Accepted connection \n") ;
+        #endif
 
         pthread_t client_th;
         if(pthread_create(&client_th, NULL, handle_connection, newsock) != 0){
+            #ifdef DEBUG
             perror("pthread_create");
+            #endif
             
             close(*newsock);
             free(newsock);
@@ -416,16 +435,6 @@ int main(int argc, char* argv[]){
     }
     close(sock);
 
-    printf("Exiting\n");
     return 0;
 }
 
-
-
-// printf("Parsed Command: %s\n", cmd_to_str(cmd.op));
-//                 printf("Directory Path: %s\n", cmd.path);
-
-//                 if(cmd.op == PUSH) {
-//                     printf("chunk size: %d\n", cmd.chunk_size);
-//                     printf("Data: %s\n", cmd.data);
-//                 }

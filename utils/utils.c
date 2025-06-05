@@ -161,18 +161,18 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
                   conf_pairs[curr_line].target_ip,
                   &conf_pairs[curr_line].target_port);
 
-        // if(create_dir(conf_pairs[curr_line].source)){
-        //     perror("error creating directory source directory\n");
-        //     return 1;
-        // }
-
-        // if(create_dir(conf_pairs[curr_line].target)){
-        //     perror("error creating directory target directory\n");
-        //     return 1;
-        // }
-
         curr_line++;
     }
+    return 0;
+}
+
+int check_args_client(int argc, const char** argv, int *port){
+    if(argc != 3) return 1;
+
+    if(strncmp(argv[1], "-p", 2)) return 1;
+
+    *port = atoi(argv[2]);
+
     return 0;
 }
 
@@ -280,7 +280,9 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
 
         int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
         if(status == -1){
+            #ifdef DEBUG
             perror("parse path target");
+            #endif
         }
         full_command->source_ip[BUFFSIZ - 1] = '\0';
 
@@ -321,12 +323,16 @@ int establish_connection(int *sock, const char *ip, const int port){
     struct hostent *hp;         /* to resolve server ip */
 
     if((*sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+        #ifdef DEBUG
         perror("socket");
+        #endif
         return 1;
     }
     
     if((hp = gethostbyname(ip)) == NULL){
+        #ifdef DEBUG
         perror("gethostbyname"); 
+        #endif
         close(*sock);
         return 1;
     }
@@ -336,7 +342,9 @@ int establish_connection(int *sock, const char *ip, const int port){
     servadd.sin_family = AF_INET;   /* set socket type */
 
     if(connect(*sock, (struct sockaddr*) &servadd, sizeof(servadd)) != 0){
+        #ifdef DEBUG
         perror("connect");
+        #endif
         close(*sock);
         return 1;
     }
@@ -385,7 +393,9 @@ int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_con
 
     *rec_file_len = atoi(token);
     if(*rec_file_len == -1){
+        #ifdef DEBUG
         perror("File not found from client");
+        #endif
         return 1;
     }
 
@@ -409,7 +419,9 @@ int read_list_response(int sock, char **list_reply_buff){
             *list_reply_buff = realloc(*list_reply_buff, list_buff_capacity);
 
             if(*list_reply_buff == NULL){
+                #ifdef DEBUG
                 perror("Realloc");
+                #endif
                 return 1;
             }
             (*list_reply_buff)[list_buff_capacity - 1] = '\0';

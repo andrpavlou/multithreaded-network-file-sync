@@ -13,7 +13,7 @@ int check_args_manager(int argc, char *argv[], char** logfile, char** config_fil
 int check_args_console(int argc, char* argv[], char **logfile, char **host_ip, int *port);
 char* get_current_time_str(void);
 int parse_console_command(const char* buffer, manager_command *full_command, char **source_full_path, char **target_full_path);
-
+int check_args_client(int argc, const char** argv, int *port);
 
 //////////// TODO: socket related must add these to other modules
 int establish_connection(int *sock, const char *ip, const int port);

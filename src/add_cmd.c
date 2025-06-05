@@ -17,7 +17,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     int sock_source_read;
     if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
-        #ifdef debug
+        #ifdef DEBUG
         perror("establish con");
         #endif
 
@@ -30,7 +30,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
     // //========== Request List Command ========== //
     if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
-        #ifdef debug
+        #ifdef DEBUG
         perror("list write");
         #endif
 
@@ -99,7 +99,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         
         sync_info_mem_store *inserted_node = add_sync_info(sync_info_head, source_full_path, target_full_path);
         if(inserted_node == NULL){
-            #ifdef debug
+            #ifdef DEBUG
             perror("sync info insert");    
             #endif
             
@@ -150,7 +150,7 @@ int send_header(const int sock_target_push, const bool is_first_write, int reque
                                                                                     write_batch_bytes);
 
     if(header_len < 0 || header_len >= (int)sizeof(header_buffer)){
-        #ifdef debug
+        #ifdef DEBUG
         perror("header too long");
         #endif
 
@@ -207,7 +207,7 @@ int send_push_header_generic(int sock_target_push, bool *is_first_push, int requ
 // No need to close() after this fails
 int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_push, const sync_task *task){
     if(establish_connection(sock_source_read, task->manager_cmd.source_ip, task->manager_cmd.source_port)){
-        #ifdef debug
+        #ifdef DEBUG
         perror("establish con source");
         #endif
 
@@ -215,7 +215,7 @@ int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_pu
     }
     
     if(establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)){
-        #ifdef debug
+        #ifdef DEBUG
         perror("establish con target");
         #endif
         return 1;
@@ -250,7 +250,7 @@ int enqueue_config_pairs(int total_config_pairs, sync_info_mem_store **sync_info
 
         int status = enqueue_add_cmd(conf_cmd, queue_task, sync_info_head, conf_pairs[i].source_full_path, conf_pairs[i].target_full_path, fd_log, write_sock);
         if(status){
-            #ifdef debug
+            #ifdef DEBUG
             perror("enqueue enqueue ");
             #endif
             return 1;

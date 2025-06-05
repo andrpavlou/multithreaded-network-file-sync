@@ -24,8 +24,9 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
 
         int status = parse_path(found_hosts[i], NULL, current_parsed_ip, &current_parsed_port);
         if(status){
-
+            #ifdef DEBUG
             perror("parse path for cancel");
+            #endif
             continue;
         }
         if(task_exists_cancel(queue_tasks, (const char *)current_parsed_ip, (const char *)curr_cmd.cancel_dir, current_parsed_port) == TRUE){

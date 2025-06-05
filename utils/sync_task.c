@@ -15,7 +15,9 @@ int init_sync_task_ts(sync_task_ts *queue, const int buffer_slots){
     queue->tasks_array = malloc(buffer_slots * sizeof(sync_task*));
     
     if(queue->tasks_array == NULL){
+        #ifdef DEBUG
         perror("malloc");
+        #endif
         return 1;
     }
 

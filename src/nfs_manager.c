@@ -15,7 +15,7 @@
 #include "cancel_cmd.h"
 #include "logging_defs.h"
 
-#define DEBUG
+// #define DEBUG
 
 volatile sig_atomic_t manager_active = 1;
 void print_queue(sync_task_ts *task);
@@ -286,8 +286,10 @@ int main(int argc, char *argv[]){
         #endif
         
         return 1;
-    } 
+    }
+    #ifdef DEBUG
     printf("Listening for connections to port % d \n", port);
+    #endif
     
     socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
@@ -320,8 +322,10 @@ int main(int argc, char *argv[]){
         conf_pairs_sync = TRUE;
     }
     
-    
+    #ifdef DEBUG
     printf("Accepted connection \n") ;
+    #endif
+    
     while(manager_active){
 
         char read_buffer[BUFFSIZ];

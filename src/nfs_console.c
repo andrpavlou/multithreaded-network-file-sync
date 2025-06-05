@@ -63,7 +63,6 @@ int read_from_manager(int sock_fd) {
 
 
 
-// TODO: what todo with invalid commands
 
 // bin/nfs_console -l logs/console.log -h localhost -p 2525
 int main(int argc, char* argv[]){
@@ -84,13 +83,17 @@ int main(int argc, char* argv[]){
     
     int fd_log;
     if((fd_log = open(logfile, O_CREAT | O_WRONLY | O_TRUNC, 0664)) == -1){
+        #ifdef DEBUG
         perror("open");
+        #endif
         return 1;
     }
 
     int socket_host_manager;
     if(establish_connection(&socket_host_manager, host_ip, host_port)){
+        #ifdef DEBUG
         perror("establish con");
+        #endif
         
         close(fd_log);
         return 1;
@@ -103,7 +106,9 @@ int main(int argc, char* argv[]){
         
         ssize_t read_b = read(0, console_buffer, BUFFSIZ - 1);
         if(read_b < 0){
+            #ifdef DEBUG
             perror("read");
+            #endif
             continue;
         }
         
@@ -112,7 +117,9 @@ int main(int argc, char* argv[]){
 
         ssize_t write_b = write_all(socket_host_manager, console_buffer, read_b);
         if(write_b == -1){
+            #ifdef DEBUG
             perror("write");
+            #endif
         }
 
         if(!strncasecmp(console_buffer, "shutdown", 9)){
