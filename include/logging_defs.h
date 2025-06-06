@@ -1,7 +1,7 @@
 #ifndef LOGGING_DEFS_H
 #define LOGGING_DEFS_H
 
-
+#include "utils.h"
 
 
 ////////////////// ADD QUEUE LOGS //////////////////

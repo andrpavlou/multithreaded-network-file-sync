@@ -1,4 +1,3 @@
-#include <sys/select.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
@@ -8,7 +7,7 @@
 
 #include "logging_defs.h"
 #include "socket_utils.h"
-#include "utils.h"
+#include "manager_reader.h"
 
 
 /*
@@ -22,46 +21,11 @@
 */
 
 
-
 volatile sig_atomic_t console_active = 1;
-void handle_sigint(int sig){
+
+static void handle_sigint(int sig){
     console_active = 0;
 }
-
-
-ssize_t read_line_manager(int sock, char *buffer, size_t max_len) {
-    size_t total_read = 0, read_b;
-    char c;
-    do{
-        read_b = read(sock, &c, 1);
-        
-        if(read_b == 0) break;
-        if(read_b < 0)  return -1;
-
-        buffer[total_read++] = c;
-    }while(total_read < max_len - 1 && c != '\n');
-      
-    buffer[total_read] = '\0';
-    return total_read;
-}
-
-
-int read_from_manager(int sock_fd) {
-    char buffer[BUFFSIZ];
-
-    while(1){
-        ssize_t read_b;
-        if((read_b = read_line_manager(sock_fd, buffer, sizeof(buffer))) == 0) break;
-        if(read_b < 0) return -1;
-
-        if(!strncmp(buffer, "END\n", 4)) break;
-
-        write(1, buffer, read_b); 
-    }
-
-    return 0;
-}
-
 
 
 

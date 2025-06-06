@@ -13,6 +13,8 @@ MANAGER_SRC 	= $(SRCDIR)/nfs_manager.c
 CONSOLE_SRC 	= $(SRCDIR)/nfs_console.c
 ADD_CMD_SRC 	= $(SRCDIR)/add_cmd.c
 CANCEL_CMD_SRC 	= $(SRCDIR)/cancel_cmd.c
+CLIENT_CON_SRC 	= $(SRCDIR)/client_connection_handler.c
+MGR_READ_SRC 	= $(SRCDIR)/manager_reader.c
 
 UTILS_SRC 		= $(UTILSDIR)/utils.c
 SOCKET_UTILS_SRC= $(UTILSDIR)/socket_utils.c
@@ -24,15 +26,15 @@ SYNC_TASK_SRC	= $(DATASTRDIR)/sync_task_queue.c
 CLIENT_OBJ 		= $(OBJDIR)/nfs_client.o
 MANAGER_OBJ 	= $(OBJDIR)/nfs_manager.o
 CONSOLE_OBJ 	= $(OBJDIR)/nfs_console.o
-
 UTILS_OBJ 		= $(OBJDIR)/utils.o
 SOCKET_UTILS_OBJ= $(OBJDIR)/socket_utils.o
-
 ADD_CMD_OBJ 	= $(OBJDIR)/add_cmd.o
 CANCEL_CMD_OBJ 	= $(OBJDIR)/cancel_cmd.o
-
 SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info_list.o
 SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task_queue.o
+CLIENT_CON_OBJ 	= $(OBJDIR)/client_connection_handler.o
+MGR_READ_OBJ 	= $(OBJDIR)/manager_reader.o
+
 
 
 CLIENT_BIN 	= $(BINDIR)/nfs_client
@@ -40,7 +42,7 @@ MANAGER_BIN = $(BINDIR)/nfs_manager
 CONSOLE_BIN = $(BINDIR)/nfs_console
 
 
-all: client utils manager console sync_info sync_task add_cmd cancel_cmd socket_utils
+all: client utils manager console sync_info sync_task add_cmd cancel_cmd socket_utils client_con manager_reader
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
@@ -73,9 +75,18 @@ socket_utils: $(SOCKET_UTILS_OBJ)
 $(SOCKET_UTILS_OBJ): $(SOCKET_UTILS_SRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+client_con: $(CLIENT_CON_OBJ)
+$(CLIENT_CON_OBJ): $(CLIENT_CON_SRC) $(SOCKET_UTILS_OBJ) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+manager_reader: $(MGR_READ_OBJ)
+$(MGR_READ_OBJ): $(MGR_READ_SRC) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
 
 client: $(CLIENT_BIN) 
-$(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
+$(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) $(SOCKET_UTILS_OBJ) $(CLIENT_CON_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
@@ -91,7 +102,7 @@ $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)
 
 
 console: $(CONSOLE_BIN) 
-$(CONSOLE_BIN): $(CONSOLE_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
+$(CONSOLE_BIN): $(CONSOLE_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(SOCKET_UTILS_OBJ) $(MGR_READ_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(CONSOLE_OBJ): $(CONSOLE_SRC) | $(OBJDIR)

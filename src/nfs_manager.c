@@ -10,22 +10,18 @@
 #include "sync_task_queue.h"
 #include "sync_info_list.h"
 #include "nfs_manager_def.h"
-#include "common_defs.h"
 #include "add_cmd.h"
 #include "cancel_cmd.h"
 #include "logging_defs.h"
 #include "socket_utils.h"
 
-// #define DEBUG
 
 volatile sig_atomic_t manager_active = 1;
-void print_queue(sync_task_ts *task);
 
 
 void handle_sigint(int sig){
     manager_active = 0;
 }
-
 
 
 typedef struct {
@@ -408,54 +404,4 @@ int main(int argc, char *argv[]){
 
     
     return 0;
-}
-
-
-
-static const char* cmd_to_str(manager_command cmd){
-    if(cmd.op == ADD)       return "ADD";
-    if(cmd.op == CANCEL)    return "CANCEL";
-    if(cmd.op == SHUTDOWN)  return "SHUTDOWN";
-
-    return "INVALID";
-}
-
-void print_queue(sync_task_ts *task){
-    if(!task){
-        printf("NULL task\n");
-        return;
-    }
-    printf("Atomic Counter: %d\n", task->cancel_cmd_counter);
-    for(int i = 0; i < task->size; i++){
-        int index = (task->head + i) % task->buffer_slots;
-        sync_task *curr_task = task->tasks_array[index];
-
-        printf("Operation\t: %s\n", cmd_to_str(curr_task->manager_cmd));
-        if(curr_task->manager_cmd.op == ADD){
-            printf("Filename\t: %s\n", curr_task->filename);
-            printf("Source Dir\t: %s\n", curr_task->manager_cmd.source_dir);
-            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
-            printf("Target Dir\t: %s\n", curr_task->manager_cmd.target_dir);
-            printf("Target IP\t: %s\n", curr_task->manager_cmd.target_ip);
-            printf("Target Port\t: %d\n", curr_task->manager_cmd.target_port);
-        }
-
-
-        if(curr_task->manager_cmd.op == CANCEL){
-            printf("Source Dir\t: %s\n", curr_task->manager_cmd.cancel_dir);
-            printf("Source IP\t: %s\n", curr_task->manager_cmd.source_ip);
-            printf("Source Port\t: %d\n", curr_task->manager_cmd.source_port);
-        }
-
-
-        if(curr_task->node){
-            printf("Sync Info:\n");
-            printf("  Source\t: %s\n", curr_task->node->source);
-            printf("  Target\t: %s\n", curr_task->node->target);
-        } else {
-            printf("Sync Info: NULL\n");
-        }
-        printf("----------------------------------\n");
-    }
 }
