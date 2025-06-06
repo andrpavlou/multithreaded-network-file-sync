@@ -1,12 +1,13 @@
-#include "cancel_cmd.h"
-#include "sync_info.h"
-#include "utils.h"
-#include "logging_defs.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "cancel_cmd.h"
+#include "sync_info_list.h"
+#include "utils.h"
+#include "logging_defs.h"
+
 
 
 int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head, 
@@ -22,7 +23,7 @@ int enqueue_cancel_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks
         int current_parsed_port = -1;
         char current_parsed_ip[BUFFSIZ];
 
-        int status = parse_path(found_hosts[i], NULL, current_parsed_ip, &current_parsed_port);
+        int status = parse_cmd_path(found_hosts[i], NULL, current_parsed_ip, &current_parsed_port);
         if(status){
             #ifdef DEBUG
             perror("parse path for cancel");

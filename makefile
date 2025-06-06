@@ -5,6 +5,7 @@ OBJDIR 		= obj
 SRCDIR 		= src
 BINDIR 		= bin
 UTILSDIR	= utils
+DATASTRDIR	= data_structures
 
 
 CLIENT_SRC 		= $(SRCDIR)/nfs_client.c
@@ -12,20 +13,26 @@ MANAGER_SRC 	= $(SRCDIR)/nfs_manager.c
 CONSOLE_SRC 	= $(SRCDIR)/nfs_console.c
 ADD_CMD_SRC 	= $(SRCDIR)/add_cmd.c
 CANCEL_CMD_SRC 	= $(SRCDIR)/cancel_cmd.c
-UTILS_SRC 		= $(UTILSDIR)/utils.c
-SYNC_INFO_SRC	= $(UTILSDIR)/sync_info.c
-SYNC_TASK_SRC	= $(UTILSDIR)/sync_task.c
 
+UTILS_SRC 		= $(UTILSDIR)/utils.c
+SOCKET_UTILS_SRC= $(UTILSDIR)/socket_utils.c
+
+SYNC_INFO_SRC	= $(DATASTRDIR)/sync_info_list.c
+SYNC_TASK_SRC	= $(DATASTRDIR)/sync_task_queue.c
 
 
 CLIENT_OBJ 		= $(OBJDIR)/nfs_client.o
 MANAGER_OBJ 	= $(OBJDIR)/nfs_manager.o
 CONSOLE_OBJ 	= $(OBJDIR)/nfs_console.o
+
 UTILS_OBJ 		= $(OBJDIR)/utils.o
-SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info.o
-SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task.o
+SOCKET_UTILS_OBJ= $(OBJDIR)/socket_utils.o
+
 ADD_CMD_OBJ 	= $(OBJDIR)/add_cmd.o
 CANCEL_CMD_OBJ 	= $(OBJDIR)/cancel_cmd.o
+
+SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info_list.o
+SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task_queue.o
 
 
 CLIENT_BIN 	= $(BINDIR)/nfs_client
@@ -33,7 +40,7 @@ MANAGER_BIN = $(BINDIR)/nfs_manager
 CONSOLE_BIN = $(BINDIR)/nfs_console
 
 
-all: client utils manager console sync_info sync_task add_cmd cancel_cmd
+all: client utils manager console sync_info sync_task add_cmd cancel_cmd socket_utils
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
@@ -55,17 +62,20 @@ $(SYNC_TASK_OBJ): $(SYNC_TASK_SRC) | $(OBJDIR)
 
 
 add_cmd: $(ADD_CMD_OBJ)
-$(ADD_CMD_OBJ): $(ADD_CMD_SRC) $(UTILS_OBJ) | $(OBJDIR)
+$(ADD_CMD_OBJ): $(ADD_CMD_SRC) $(UTILS_OBJ) $(SOCKET_UTILS_OBJ) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 cancel_cmd: $(CANCEL_CMD_OBJ)
 $(CANCEL_CMD_OBJ): $(CANCEL_CMD_SRC) $(UTILS_OBJ) $(SYNC_INFO_OBJ) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+socket_utils: $(SOCKET_UTILS_OBJ)
+$(SOCKET_UTILS_OBJ): $(SOCKET_UTILS_SRC) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 
 client: $(CLIENT_BIN) 
-$(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) | $(BINDIR)
+$(CLIENT_BIN): $(CLIENT_OBJ) $(UTILS_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
@@ -73,7 +83,7 @@ $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
 
 
 manager: $(MANAGER_BIN) 
-$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ) $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(ADD_CMD_OBJ) $(CANCEL_CMD_OBJ) | $(BINDIR)
+$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ) $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(ADD_CMD_OBJ) $(CANCEL_CMD_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)
@@ -81,7 +91,7 @@ $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)
 
 
 console: $(CONSOLE_BIN) 
-$(CONSOLE_BIN): $(CONSOLE_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) | $(BINDIR)
+$(CONSOLE_BIN): $(CONSOLE_OBJ) $(UTILS_OBJ)  $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(CONSOLE_OBJ): $(CONSOLE_SRC) | $(OBJDIR)

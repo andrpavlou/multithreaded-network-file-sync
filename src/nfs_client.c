@@ -5,7 +5,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <signal.h> /* signal */
+#include <signal.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -15,6 +15,7 @@
 #include "utils.h"
 #include "common_defs.h"
 #include "nfs_client_def.h"
+#include "socket_utils.h"
 
 
 /*
@@ -36,22 +37,9 @@
 */
 
 
-/*
-    commands without replying to anyone, just console:
-
-    echo "LIST ./test_dir" | nc localhost 2424
-    
-    echo "PULL ./test_dir/test.txt" | nc localhost 2424
-    
-    echo "PUSH ./test_dir/test.txt -1 Hello world" | nc localhost 2424
-    echo "PUSH" ./test_dir/test.txt 11 Hello world" | nc localhost 2424
-    
-    hostname -I
-    curl ifconfig.me
-*/
 
 
-ssize_t read_line(int socket, char *buffer, ssize_t max_read){
+ssize_t get_command_from_manager(int socket, char *buffer, ssize_t max_read){
     char current_char;
     ssize_t total_read = 0;
 
@@ -195,7 +183,7 @@ int get_filenames(const char *path, char filenames[][BUFFSIZ]){
 
 
 
-int exec_command(client_command cmd, int newsock){
+int exec_cmd_client(client_command cmd, int newsock){
     if(cmd.op == LIST){
         char clean_path[BUFFSIZ];
         strncpy(clean_path, cmd.path, BUFFSIZ - 1);
@@ -316,14 +304,13 @@ int exec_command(client_command cmd, int newsock){
     return 1;
 }
 
+
 void handle_sigint(int sig){
     client_active = 0;
 }
 
 
-
-
-void* handle_connection(void* arg){
+void* handle_connection_th(void* arg){
     int newsock = *(int*)arg;
     free(arg);
 
@@ -331,7 +318,7 @@ void* handle_connection(void* arg){
     char read_buffer[BUFFSIZ];
     memset(read_buffer, 0, sizeof(read_buffer));
 
-    while((n_read = read_line(newsock, read_buffer, sizeof(read_buffer))) > 0){
+    while((n_read = get_command_from_manager(newsock, read_buffer, sizeof(read_buffer))) > 0){
         client_command current_cmd_struct;
         if(parse_manager_command(read_buffer, &current_cmd_struct)){
             #ifdef DEBUG
@@ -340,7 +327,7 @@ void* handle_connection(void* arg){
             break;
         }
 
-        if(exec_command(current_cmd_struct, newsock)){
+        if(exec_cmd_client(current_cmd_struct, newsock)){
             break;
         }
         memset(read_buffer, 0, sizeof(read_buffer));
@@ -421,7 +408,7 @@ int main(int argc, char* argv[]){
         #endif
 
         pthread_t client_th;
-        if(pthread_create(&client_th, NULL, handle_connection, newsock) != 0){
+        if(pthread_create(&client_th, NULL, handle_connection_th, newsock) != 0){
             #ifdef DEBUG
             perror("pthread_create");
             #endif

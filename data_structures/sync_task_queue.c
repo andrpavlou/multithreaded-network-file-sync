@@ -1,7 +1,9 @@
-#include "sync_task.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "sync_task_queue.h"
+
 
 // Initialization of thread safe sync task queue
 int init_sync_task_ts(sync_task_ts *queue, const int buffer_slots){

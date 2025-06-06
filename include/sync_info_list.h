@@ -2,9 +2,10 @@
 #define SYNC_INFO_H
 
 
-#include "common_defs.h"
 #include <stdatomic.h>
 #include <pthread.h>
+
+#include "common_defs.h"
 
 
 

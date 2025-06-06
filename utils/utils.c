@@ -95,7 +95,7 @@ int line_counter_of_file(int fd, int max_len){
 }
 
 
-int parse_path(const char *full_path, char *dir_path, char *ip, int *port){
+int parse_cmd_path(const char *full_path, char *dir_path, char *ip, int *port){
     // full_path example: /source1@127.0.0.1:2323
 
     // pointer -> @127.0.0.1:2323
@@ -150,13 +150,13 @@ int create_cf_pairs(int fd_config, config_pairs *conf_pairs){
         conf_pairs[curr_line].source_full_path[BUFFSIZ - 1] = '\0';
         conf_pairs[curr_line].target_full_path[BUFFSIZ - 1] = '\0';
 
-        parse_path(conf_pairs[curr_line].source_full_path,
+        parse_cmd_path(conf_pairs[curr_line].source_full_path,
                   conf_pairs[curr_line].source_dir_path,
                   conf_pairs[curr_line].source_ip,
                   &conf_pairs[curr_line].source_port);
 
 
-        parse_path(conf_pairs[curr_line].target_full_path,
+        parse_cmd_path(conf_pairs[curr_line].target_full_path,
                   conf_pairs[curr_line].target_dir_path,
                   conf_pairs[curr_line].target_ip,
                   &conf_pairs[curr_line].target_port);
@@ -278,7 +278,7 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         *source_full_path = strdup(src_token);
 
 
-        int status = parse_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
+        int status = parse_cmd_path((*source_full_path), full_command->source_dir, full_command->source_ip, &full_command->source_port);
         if(status == -1){
             #ifdef DEBUG
             perror("parse path target");
@@ -295,7 +295,7 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
         *target_full_path = strdup(tgt_token);
 
         
-        parse_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
+        parse_cmd_path((*target_full_path), full_command->target_dir, full_command->target_ip, &full_command->target_port);
         full_command->target_ip[BUFFSIZ - 1] = '\0';
 
         char *end = strtok(NULL, " ");  // If the user has given extra arguments, the command is not accepted
@@ -316,73 +316,8 @@ int parse_console_command(const char* buffer, manager_command *full_command, cha
     return 1;
 }
 
-//////////// TODO: CREATE MORE MODULES FOR THESE
+
 // Handles the errors -> no need for closing the socket after error
-int establish_connection(int *sock, const char *ip, const int port){
-    struct sockaddr_in servadd; /* The address of server */
-    struct hostent *hp;         /* to resolve server ip */
-
-    if((*sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-        #ifdef DEBUG
-        perror("socket");
-        #endif
-        return 1;
-    }
-    
-    if((hp = gethostbyname(ip)) == NULL){
-        #ifdef DEBUG
-        perror("gethostbyname"); 
-        #endif
-        close(*sock);
-        return 1;
-    }
-
-    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    servadd.sin_port = htons(port); /* set port number */
-    servadd.sin_family = AF_INET;   /* set socket type */
-
-    if(connect(*sock, (struct sockaddr*) &servadd, sizeof(servadd)) != 0){
-        #ifdef DEBUG
-        perror("connect");
-        #endif
-        close(*sock);
-        return 1;
-    }
-    return 0;
-}
-
-ssize_t write_all(int fd, const void *buf, size_t size) {
-    ssize_t total_written = 0;
-    while(total_written < size){
-        ssize_t n = write(fd, (char*)buf + total_written, size - total_written);
-        
-        if(n < 0)   return -1;
-        if(n == 0)  break;
-        
-        total_written += n;
-    }
-
-    return total_written;
-}
-
-
-ssize_t read_all(int fd, void *buf, size_t size){
-    ssize_t total_read_b = 0;
-
-    while(total_read_b < size){
-        ssize_t n = read(fd, (char*) buf + total_read_b, size - total_read_b);
-        
-        if(n <= 0) return n;
-        if(n == 0) return -1;
-
-        total_read_b += n;
-    }
-
-    return total_read_b;
-}
-
-
-
 int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_content){
     char temp_buff[BUFFSIZ];
     strncpy(temp_buff, rec_buff, sizeof(temp_buff) - 1);
@@ -408,76 +343,7 @@ int parse_pull_read(const char *rec_buff, ssize_t *rec_file_len, char **file_con
 }
 
 
-int read_list_response(int sock, char **list_reply_buff){
-    size_t total_read_list      = 0;
-    size_t list_buff_capacity   = 0;
-
-    do{
-        // Allocate more memory for buffer if there is not enough space
-        if(list_buff_capacity - total_read_list < BUFFSIZ){
-            list_buff_capacity += BUFFSIZ;
-            *list_reply_buff = realloc(*list_reply_buff, list_buff_capacity);
-
-            if(*list_reply_buff == NULL){
-                #ifdef DEBUG
-                perror("Realloc");
-                #endif
-                return 1;
-            }
-            (*list_reply_buff)[list_buff_capacity - 1] = '\0';
-        }
-        ssize_t n_read = read(sock, *list_reply_buff + total_read_list, BUFFSIZ);
-        
-        if(n_read <= 0){
-            *((*list_reply_buff) + total_read_list - 1) = '\0';
-            return 1;
-        }
-
-        total_read_list += n_read;
-        (*list_reply_buff)[total_read_list] = '\0';
-    } while(strstr((*list_reply_buff), "\n.") == NULL); // Keep reading until we receive '.\n'
-
-    return 0;
-}
-
-int get_files_from_list_response(char *list_reply_buff, char *file_buff[MAX_FILES]){
-    int total_src_files = 0;
-    char *curr_file = strtok(list_reply_buff, "\n");
-    
-    file_buff[total_src_files] = curr_file;
-    while(curr_file && strcmp(curr_file, ".") != 0 && total_src_files < MAX_FILES){
-        total_src_files++;
-        
-        curr_file = strtok(NULL, "\n");
-        file_buff[total_src_files] = curr_file;
-    }
-
-    return total_src_files;
-}
-
-long get_file_size_of_host(int sock){
-    int ind = 0;
-    char space_ch;
-    char num_buff[32];
-
-    // Read the size of the file we are about to send
-    while(read(sock, &space_ch, 1) == 1){
-        if(space_ch == ' ') break;
-        
-        num_buff[ind++] = space_ch;
-    }
-    num_buff[ind] = '\0';
-
-    char *end;
-    long file_size = strtol(num_buff, &end, 10);
-    if(end == num_buff || *end != '\0') return -1;
-
-    return file_size;
-}   
-
-
-
-// returns current time and date formatted string
+// Returns current time and date formatted string
 char* get_current_time_str(void){
 
     static char time_buffer[64];        // static is required to be able to return it.

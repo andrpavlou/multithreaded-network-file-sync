@@ -1,4 +1,3 @@
-#include "sync_info.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -6,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+
+#include "sync_info_list.h"
 
 pthread_mutex_t sync_info_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -21,8 +22,6 @@ void print_all_sync_info(sync_info_mem_store* head){
         curr = curr->next;
     }
 }
-
-
 
 
 sync_info_mem_store *add_sync_info(sync_info_mem_store** head, const char* source, const char* target){

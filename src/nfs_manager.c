@@ -7,13 +7,14 @@
 #include <string.h>
 
 #include "utils.h"
-#include "sync_task.h"
-#include "sync_info.h"
+#include "sync_task_queue.h"
+#include "sync_info_list.h"
 #include "nfs_manager_def.h"
 #include "common_defs.h"
 #include "add_cmd.h"
 #include "cancel_cmd.h"
 #include "logging_defs.h"
+#include "socket_utils.h"
 
 // #define DEBUG
 
@@ -34,7 +35,7 @@ typedef struct {
 } thread_args;
 
 
-void *thread_exec_task(void *arg){
+void *exec_task_manager_th(void *arg){
     thread_args *args = (thread_args*) arg;
     sync_task_ts *queue_tasks = args->queue;
     
@@ -313,7 +314,7 @@ int main(int argc, char *argv[]){
         arglist->log_fd             = fd_log;
         arglist->write_console_sock = socket_console_read;
 
-        pthread_create(&worker_th[i], NULL, thread_exec_task, arglist);
+        pthread_create(&worker_th[i], NULL, exec_task_manager_th, arglist);
     }
 
 

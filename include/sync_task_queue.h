@@ -1,7 +1,7 @@
 #ifndef SYNC_TASK_H
 #define SYNC_TASK_H
 
-#include "sync_info.h"
+#include "sync_info_list.h"
 #include "nfs_manager_def.h"
 
 
@@ -20,7 +20,6 @@
             (!strcmp((task)->manager_cmd.source_ip, (ip))           && \
             !strcmp((task)->manager_cmd.cancel_dir, (cancel_dir))   && \
             (task)->manager_cmd.source_port == (port)))
-
 
 
 

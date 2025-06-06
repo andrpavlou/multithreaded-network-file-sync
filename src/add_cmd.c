@@ -1,6 +1,3 @@
-#include "add_cmd.h"
-#include "utils.h"
-#include "logging_defs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,13 +5,16 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "add_cmd.h"
+#include "utils.h"
+#include "logging_defs.h"
+#include "socket_utils.h"
 
 
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
     const char* source_full_path, const char *target_full_path, int fd_log, int write_sock){
     
-
     int sock_source_read;
     if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
         #ifdef DEBUG
@@ -118,7 +118,6 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     close(sock_source_read);
     return 0;
 }
-
 
 
 
