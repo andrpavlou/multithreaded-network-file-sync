@@ -20,13 +20,11 @@
   read()
 */
 
-
 volatile sig_atomic_t console_active = 1;
 
 static void handle_sigint(int sig){
     console_active = 0;
 }
-
 
 
 // bin/nfs_console -l logs/console.log -h localhost -p 2525

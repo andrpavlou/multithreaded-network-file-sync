@@ -15,7 +15,6 @@
 #include "socket_utils.h"
 
 
-
 static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_read){
     char current_char;
     ssize_t total_read = 0;
@@ -74,7 +73,7 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
         char tmp_buffer[2 * BUFFSIZ];
         strncpy(tmp_buffer, buffer, sizeof(tmp_buffer) - 1);
         tmp_buffer[sizeof(tmp_buffer) - 1] = '\0';
-
+        
         char *token = strtok(tmp_buffer, " "); 
         token = strtok(NULL, " ");       
         if(!token) return 1;
@@ -245,14 +244,17 @@ static int exec_cmd_client(client_command cmd, int newsock){
     }
 
     if(cmd.op == PUSH){
-        // Read the data becasue we send: PUSH file size\r\ndata
+        // Read the data because we send: PUSH file size\r\ndata
         // important because data might have \r\n in them
-        if(read_all(newsock, cmd.data, cmd.chunk_size) < 0){
+        ssize_t bytes_read = 0;
+        if((bytes_read = read_all(newsock, cmd.data, cmd.chunk_size)) < 0){
             #ifdef DEBUG
             perror("read exec command for push");
             #endif
             return 1;
         }
+
+
         int fd_file_write = open(cmd.path, O_WRONLY | O_APPEND);
         
         if(fd_file_write == -1){
@@ -278,7 +280,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
     return 1;
 }
 
-
+#define DEBUG
 
 void* handle_connection_th(void* arg){
     int newsock = *(int*)arg;
@@ -290,14 +292,17 @@ void* handle_connection_th(void* arg){
 
     while((n_read = read_command_from_manager(newsock, read_buffer, sizeof(read_buffer))) > 0){
         client_command current_cmd_struct;
+
         if(parse_manager_command(read_buffer, &current_cmd_struct)){
             #ifdef DEBUG
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
             #endif
             break;
         }
-
         if(exec_cmd_client(current_cmd_struct, newsock)){
+            #ifdef DEBUG
+            fprintf(stderr, "error: exec_cmd_client\n\n");
+            #endif
             break;
         }
         memset(read_buffer, 0, sizeof(read_buffer));

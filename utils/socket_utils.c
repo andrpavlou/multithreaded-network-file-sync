@@ -11,39 +11,50 @@
 #include <netdb.h>          
 
 
+/*
+    The gethostbyname*(), gethostbyaddr*(), herror(), and hstrerror()
+    functions are obsolete.  Applications should use getaddrinfo(3),
+    getnameinfo(3), and gai_strerror(3) instead.
+*/
 int establish_connection(int *sock, const char *ip, const int port){
-    struct sockaddr_in servadd; /* The address of server */
-    struct hostent *hp;         /* to resolve server ip */
+    struct addrinfo hints, *res, *rp;
+    char port_str[6];
+    snprintf(port_str, sizeof(port_str), "%d", port);
 
-    if((*sock = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if(getaddrinfo(ip, port_str, &hints, &res) != 0){
         #ifdef DEBUG
-        perror("socket");
+        perror("getaddrinfo failed");
         #endif
+
         return 1;
     }
-    
-    if((hp = gethostbyname(ip)) == NULL){
-        #ifdef DEBUG
-        perror("gethostbyname"); 
-        #endif
+
+    for(rp = res; rp != NULL; rp = rp->ai_next){
+        *sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(*sock == -1)
+            continue;
+
+        if(connect(*sock, rp->ai_addr, rp->ai_addrlen) == 0)
+            break;
+
         close(*sock);
-        return 1;
     }
+    freeaddrinfo(res);
 
-    memcpy(&servadd.sin_addr, hp->h_addr, hp->h_length);
-    servadd.sin_port = htons(port); /* set port number */
-    servadd.sin_family = AF_INET;   /* set socket type */
-
-    if(connect(*sock, (struct sockaddr*) &servadd, sizeof(servadd)) != 0){
+    if(rp == NULL){
         #ifdef DEBUG
-        perror("connect");
+        fprintf(stderr, "Could not connect to %s:%d\n", ip, port);
         #endif
-        close(*sock);
+
         return 1;
     }
+
     return 0;
 }
-
 
 
 ssize_t write_all(int fd, const void *buf, size_t size) {
@@ -67,8 +78,8 @@ ssize_t read_all(int fd, void *buf, size_t size){
     while(total_read_b < size){
         ssize_t n = read(fd, (char*) buf + total_read_b, size - total_read_b);
         
-        if(n <= 0) return n;
-        if(n == 0) return -1;
+        if(n < 0) return -1;
+        if(n == 0) break;
 
         total_read_b += n;
     }

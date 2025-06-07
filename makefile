@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS 		= -Wall -Iinclude
+CFLAGS 		= -Wall -Iinclude -g
 OBJDIR 		= obj
 SRCDIR 		= src
 BINDIR 		= bin
@@ -15,6 +15,7 @@ ADD_CMD_SRC 	= $(SRCDIR)/add_cmd.c
 CANCEL_CMD_SRC 	= $(SRCDIR)/cancel_cmd.c
 CLIENT_CON_SRC 	= $(SRCDIR)/client_connection_handler.c
 MGR_READ_SRC 	= $(SRCDIR)/manager_reader.c
+MGR_WORKER_SRC 	= $(SRCDIR)/manager_worker_pool.c
 
 UTILS_SRC 		= $(UTILSDIR)/utils.c
 SOCKET_UTILS_SRC= $(UTILSDIR)/socket_utils.c
@@ -34,6 +35,7 @@ SYNC_INFO_OBJ 	= $(OBJDIR)/sync_info_list.o
 SYNC_TASK_OBJ 	= $(OBJDIR)/sync_task_queue.o
 CLIENT_CON_OBJ 	= $(OBJDIR)/client_connection_handler.o
 MGR_READ_OBJ 	= $(OBJDIR)/manager_reader.o
+MGR_WORKER_OBJ 	= $(OBJDIR)/manager_worker_pool.o
 
 
 
@@ -42,7 +44,7 @@ MANAGER_BIN = $(BINDIR)/nfs_manager
 CONSOLE_BIN = $(BINDIR)/nfs_console
 
 
-all: client utils manager console sync_info sync_task add_cmd cancel_cmd socket_utils client_con manager_reader
+all: client utils manager console sync_info sync_task add_cmd cancel_cmd socket_utils client_con manager_reader manager_worker
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
@@ -83,6 +85,10 @@ manager_reader: $(MGR_READ_OBJ)
 $(MGR_READ_OBJ): $(MGR_READ_SRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+manager_worker: $(MGR_WORKER_OBJ)
+$(MGR_WORKER_OBJ): $(MGR_WORKER_SRC) $(SYNC_TASK_OBJ) $(CANCEL_CMD_OBJ) $(ADD_CMD_OBJ)  | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 
 
 client: $(CLIENT_BIN) 
@@ -94,7 +100,7 @@ $(CLIENT_OBJ): $(CLIENT_SRC) | $(OBJDIR)
 
 
 manager: $(MANAGER_BIN) 
-$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ) $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(ADD_CMD_OBJ) $(CANCEL_CMD_OBJ) $(SOCKET_UTILS_OBJ) | $(BINDIR)
+$(MANAGER_BIN): $(MANAGER_OBJ) $(UTILS_OBJ) $(SYNC_INFO_OBJ) $(SYNC_TASK_OBJ) $(ADD_CMD_OBJ) $(CANCEL_CMD_OBJ) $(SOCKET_UTILS_OBJ) $(MGR_WORKER_OBJ)| $(BINDIR)
 	$(CC) $(CFLAGS) $^ -o $@ -lpthread
 
 $(MANAGER_OBJ): $(MANAGER_SRC) | $(OBJDIR)
