@@ -109,23 +109,23 @@ $ make
 ```
 5.3.1 Run clients on each of the different ips where each directory exists (does not have to be the same ip as console/manager).
 ``` 
-bin/nfs_client -p 2323
-bin/nfs_client -p 2424
-bin/nfs_client -p 2525
-bin/nfs_client -p 2626
+$ bin/nfs_client -p 2323
+$ bin/nfs_client -p 2424
+$ bin/nfs_client -p 2525
+$ bin/nfs_client -p 2626
 
 ```
 5.3.2 Run the manager
  
 ```
-bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
+$ bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
 ```
 
 
 5.3.3 Run the console
  
 ```
-bin/nfs_console -l logs/console.log -h localhost -p 2525
+$ bin/nfs_console -l logs/console.log -h localhost -p 2525
 ```
   1. Log directories should exist, if given like this
   2. Can use host's IP as well instead of localhost
