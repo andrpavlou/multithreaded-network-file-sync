@@ -2,10 +2,10 @@
 #include <string.h>   
 #include <stddef.h>
 
-#include "manager_reader.h"
+#include "read_from_manager.h"
 #include "common_defs.h"
 
-static ssize_t read_line_manager(int socket, char *buffer, size_t max_len){
+static ssize_t read_line_from_manager(int socket, char *buffer, size_t max_len){
     size_t total_read = 0, read_b;
     char c;
     do{
@@ -27,7 +27,7 @@ int read_from_manager(int sock_fd){
 
     while(1){
         ssize_t read_b;
-        if((read_b = read_line_manager(sock_fd, buffer, sizeof(buffer))) == 0) break;
+        if((read_b = read_line_from_manager(sock_fd, buffer, sizeof(buffer))) == 0) break;
         if(read_b < 0) return -1;
 
         if(!strncmp(buffer, "END\n", 4)) break;
