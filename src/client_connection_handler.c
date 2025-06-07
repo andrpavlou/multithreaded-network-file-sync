@@ -199,7 +199,9 @@ static int exec_cmd_client(client_command cmd, int newsock){
         char size_buf[BUFFSIZ / 4];
         int len = snprintf(size_buf, sizeof(size_buf), "%ld ", file_size);
         if(write_all(newsock, size_buf, len) == -1){
+            #ifdef DEBUG
             perror("Write size");
+            #endif
             
             close(fd_file_read);
             return -1;

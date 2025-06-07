@@ -92,9 +92,9 @@ int main(int argc, char* argv[]){
     socklen_t clientlen;
     while(client_active){
         clientlen = sizeof(struct sockaddr_in);
-        int *newsock = malloc(sizeof(int));
 
-        if((*newsock = accept(sock, clientptr, &clientlen)) < 0){
+        int temp_sock;
+        if((temp_sock = accept(sock, clientptr, &clientlen)) < 0){
             #ifdef DEBUG
             perror("accept ");
             #endif
@@ -103,6 +103,9 @@ int main(int argc, char* argv[]){
         #ifdef DEBUG
         printf("Accepted connection \n") ;
         #endif
+        
+        int *newsock = malloc(sizeof(int));
+        *newsock = temp_sock;
 
         pthread_t client_th;
         if(pthread_create(&client_th, NULL, handle_connection_th, newsock) != 0){
