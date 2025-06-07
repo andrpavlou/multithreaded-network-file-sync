@@ -22,7 +22,7 @@ Build phases:
     $ make manager 
     $ make console
     $ make client
-    $ make xxxxxx (all the utils linked with the above for seperate building)
+    $ make xxxxxx (all the utils linked with the above for separate building)
 
 To clean all generated files:
 
@@ -34,7 +34,7 @@ This removes object files, binaries, named pipes, logs.
 2. Execution Instructions
 ---------------------------------------------------------
 
-1. Launch the clients on a remote host (seperate terminals):
+1. Launch the clients on a remote host (separate terminals):
 
    ```
    $ bin/nfs_client -p port_number
@@ -101,14 +101,14 @@ Strictly followed the paper instructions and piazza suggestions.
 
 5.1 Config file sample (source/target directories must exist, otherwise error will be displayed):
 ```
-source_dir1@xxx.xxx.xx.xx:2323 target_dir2@xxx.xxx.xx.xx:2424
-source_dir1@xxx.xxx.xx.xx:2525 target_dir3@xxx.xxx.xx.xx:2626
+source1@xxx.xxx.xx.xx:2323 target2@xxx.xxx.xx.xx:2424
+source1@xxx.xxx.xx.xx:2525 target2@xxx.xxx.xx.xx:2626
 ```
 5.2 Build
 ``` 
 $ make
 ```
-5.3.1 Run clients on each of the ips
+5.3.1 Run clients on each of the different ips where each directory exists (does not have to be the same ip as console/manager).
 ``` 
 bin/nfs_client -p 2323
 bin/nfs_client -p 2424
@@ -134,8 +134,8 @@ bin/nfs_console -l logs/console.log -h localhost -p 2525
 5.4
 Directories listed in the configuration file will be fully synchronized. The initiation of tasks (ADD, PULL, PUSH) will be recorded in the manager log. Nothing  to be displayed to the console as it has nothing to do with the starting synchronization. Following, the user can request for commands as: 
 ```
-> add source_dir1@xxx.xxx.xx.xx:2323 target_dir2@xxx.xxx.xx.xx:port
-> cancel source_dir1
+> add source1@xxx.xxx.xx.xx:2323 target1@xxx.xxx.xx.xx:port
+> cancel source1
 > cancel non_existent_dir
 > shutdown
 ``` 
