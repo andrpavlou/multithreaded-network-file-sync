@@ -1,1 +1,2 @@
-source1@195.134.65.76:2323 source2@195.134.65.76:2424
+source1@ip:port source2@ip:port
+source1@ip:port source3@ip:port
