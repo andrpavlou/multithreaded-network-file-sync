@@ -9,7 +9,6 @@
 
 #include "utils.h"
 #include "client_connection_handler.h"
-#define DEBUG
 
 /*
      socket()

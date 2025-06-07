@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 
-
 #include <stdio.h>      
 #include <stdlib.h>     
 #include <string.h>     
@@ -13,7 +12,6 @@
 #include "common_defs.h"
 #include "client_connection_handler.h"
 #include "socket_utils.h"
-
 
 static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_read){
     char current_char;
@@ -45,9 +43,6 @@ static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_r
     return total_read;
 }
 
-
-
-
 static int parse_manager_command(const char* buffer, client_command *full_command){
     memset(full_command->data, 0, BUFFSIZ);
 
@@ -74,17 +69,18 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
         strncpy(tmp_buffer, buffer, sizeof(tmp_buffer) - 1);
         tmp_buffer[sizeof(tmp_buffer) - 1] = '\0';
         
-        char *token = strtok(tmp_buffer, " "); 
-        token = strtok(NULL, " ");       
-        if(!token) return 1;
+        char *saveptr;
+        char *token = strtok_r(tmp_buffer, " ", &saveptr);
         
+        // thread safe instead of strtok
+        token = strtok_r(NULL, " ", &saveptr);
+        if(!token) return 1;
 
         strncpy(full_command->path, token, BUFFSIZ - 1);
         full_command->path[BUFFSIZ - 1] = '\0';
         
-        token = strtok(NULL, " ");       
+        token = strtok_r(NULL, " ", &saveptr);
         if(!token) return 1;
-
 
         full_command->chunk_size = atoi(token);
         if(full_command->chunk_size < -1 || full_command->chunk_size > BUFFSIZ){
@@ -105,7 +101,7 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
             return 0;
         }
         
-        full_command->data[strlen(token) + 1] = '\0';
+        // full_command->data[strlen(token) + 1] = '\0';
         return 0;
     }
     return 1;
@@ -280,7 +276,6 @@ static int exec_cmd_client(client_command cmd, int newsock){
     return 1;
 }
 
-#define DEBUG
 
 void* handle_connection_th(void* arg){
     int newsock = *(int*)arg;

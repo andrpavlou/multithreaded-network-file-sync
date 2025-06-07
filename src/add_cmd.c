@@ -157,10 +157,12 @@ int send_header(const int sock_target_push, const bool is_first_write, int reque
     }
     
     if(write_all(sock_target_push, header_buffer, header_len) == -1){
+        #ifdef DEBUG
         fprintf(stderr, "Send header push\nFirst write:\t%s\nTarget Dir:\t%s\nFilename:\t%s\n", 
             is_first_write == TRUE ? "TRUE" : "FALSE",
             target_dir, 
             filename);
+        #endif
         return 1;
     }
 
