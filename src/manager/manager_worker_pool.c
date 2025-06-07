@@ -106,7 +106,7 @@ void *exec_task_manager_th(void *arg){
                     perror("send push header");
                     #endif
                 } else {
-                    LOG_PUSH_SUCCESS(curr_task, (ssize_t) 0, fd_log);
+                    LOG_PUSH_SUCCESS(curr_task, (ssize_t) 0, fd_log, file_size);
                 }
 
                 CLEANUP(sock_target_push, sock_source_read, curr_task);
@@ -156,8 +156,8 @@ void *exec_task_manager_th(void *arg){
                 total_write_push += write_b;
             }
             
-            LOG_PULL_SUCCESS(curr_task, total_read_pull, fd_log);
-            LOG_PUSH_SUCCESS(curr_task, total_write_push, fd_log);
+            LOG_PULL_SUCCESS(curr_task, total_read_pull, fd_log, file_size);
+            LOG_PUSH_SUCCESS(curr_task, total_write_push, fd_log, file_size);
             CLEANUP(sock_target_push, sock_source_read, curr_task);
         }
         

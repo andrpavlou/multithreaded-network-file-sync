@@ -41,7 +41,7 @@
 
 ////////////////// PULL/PUSH LOGS //////////////////
 
-#define LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd) do{ \
+#define LOG_PULL_SUCCESS(curr_task, total_read_pull, log_fd, expected_read_pull) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
         "[%s] [%s/%s@%s:%d] [%s/%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
@@ -50,7 +50,7 @@
         (curr_task)->manager_cmd.target_dir, (curr_task)->filename, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
         pthread_self(), \
         "PULL", \
-        "SUCCESS", \
+        ((total_read_pull) == (expected_read_pull)) ? "SUCCESS" : "PARTIAL", \
         (total_read_pull), \
         "bytes pulled"); \
     write((log_fd), log_buffer, strlen(log_buffer)); \
@@ -74,7 +74,7 @@
 
 
 
-#define LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd) do{ \
+#define LOG_PUSH_SUCCESS(curr_task, total_write_push, log_fd, expected_read_push) do{ \
     char log_buffer[BUFSIZ * 4]; \
     snprintf(log_buffer, sizeof(log_buffer), \
         "[%s] [%s/%s@%s:%d] [%s/%s@%s:%d] [%ld] [%s] [%s] [%zd %s]\n", \
@@ -83,7 +83,7 @@
         (curr_task)->manager_cmd.target_dir, (curr_task)->filename, (curr_task)->manager_cmd.target_ip, (curr_task)->manager_cmd.target_port, \
         pthread_self(), \
         "PUSH", \
-        "SUCCESS", \
+        ((total_write_push) == (expected_read_push)) ? "SUCCESS" : "PARTIAL", \
         (total_write_push), \
         "bytes pushed"); \
     write(log_fd, log_buffer, strlen(log_buffer)); \
