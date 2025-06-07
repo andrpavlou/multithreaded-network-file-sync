@@ -34,23 +34,22 @@ This removes object files, binaries, named pipes, logs.
 2. Execution Instructions
 ---------------------------------------------------------
 
-1. Launch the clients on a remote host (separate terminals):
+2.1. Launch the clients on a remote host (separate terminals):
 
-   ```
-   $ bin/nfs_client -p port_number
-   $ bin/nfs_client -p port_number
-   ```
+```
+$ bin/nfs_client -p port_number
+$ bin/nfs_client -p port_number
+```
 
-2. Launch the manager:
+2.2. Launch the manager:
 
-
-    ```
-   $ bin/nfs_manager -l logfile -c configfile -n worker_limit -p port -b queue_buff_size
-    ```
+```
+$ bin/nfs_manager -l logfile -c configfile -n worker_limit -p port -b queue_buff_size
+```
 
    flag, -n can be ignored with default worker limit: 5
 
-2. Launch the console (in another terminal):
+2.3. Launch the console (in another terminal):
 
    ```
    $ bin/nfs_console -l logfile -h host_ip -p host_port
