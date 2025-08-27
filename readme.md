@@ -1,7 +1,6 @@
 README - Network File Synchronization System (SysPro 2025 - HW2)
 =========================================================
 
-- Student: [sdi2100223]
 - Course: System Programming - K24
 - Assignment: HW2 - Network File System - NFS
 ---------------------------------------------------------
