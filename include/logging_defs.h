@@ -107,20 +107,20 @@
 
 
 /*
-*   LOG_CANCEL_NOT_MONITORED VS LOG_CANCEL_NOT_MONITORED_THREAD
-*   ------------------------------------------------------------
-*   LOG_CANCEL_NOT_MONITORED: The task did not even get to be queued, because it does not exist
-*   in the our known hosts that were previously used, so we could not identify the ip:port.
-*   
-*
-*   LOG_CANCEL_NOT_MONITORED_THREAD: The task managed to be queued, so the worker threads,
-*   successfully dequeued this task, but all the syncing tasks were finished before this 
-*   canceling task was queued -> so there is nothing to cancel. In this way we know the hosts
-*   and log fully log them.
-*   
-*   (note: by the time a canceling task is given, it is given a priority, to be queued on top of the queue).
-*
-*/
+ *   LOG_CANCEL_NOT_MONITORED VS LOG_CANCEL_NOT_MONITORED_THREAD
+ *   ------------------------------------------------------------
+ *   LOG_CANCEL_NOT_MONITORED: The task did not even get to be queued, because it does not exist
+ *   in the our known hosts that were previously used, so we could not identify the ip:port.
+ *   
+ *
+ *   LOG_CANCEL_NOT_MONITORED_THREAD: The task managed to be queued, so the worker threads,
+ *   successfully dequeued this task, but all the syncing tasks were finished before this 
+ *   canceling task was queued -> so there is nothing to cancel. In this way we know the hosts
+ *   and log fully log them.
+ *   
+ *   (note: by the time a canceling task is given, it is given a priority, to be queued on top of the queue).
+ *
+ */
 
 #define LOG_CANCEL_NOT_MONITORED(curr_cmd, write_sock) do{ \
     char log_buffer[BUFSIZ * 4]; \

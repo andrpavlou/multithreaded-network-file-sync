@@ -31,14 +31,16 @@
 volatile sig_atomic_t client_active = 1;
 
 
-static void handle_sigint(int sig){
+static void handle_sigint(int sig)
+{
     client_active = 0;
 }
 
 
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[])
+{
     int port = 0;   
-    if(check_args_client(argc, (const char**)argv, &port)){
+    if (check_args_client(argc, (const char**)argv, &port)) {
         perror("USAGE: ./nfs_client -p <port_number>");
         return 1;
     }
@@ -56,7 +58,7 @@ int main(int argc, char* argv[]){
     
 
     int sock = 0;
-    if((sock = socket(AF_INET , SOCK_STREAM , 0)) < 0){
+    if( (sock = socket(AF_INET , SOCK_STREAM , 0)) < 0) {
         #ifdef DEBUG
         perror("socket");
         #endif
@@ -72,7 +74,7 @@ int main(int argc, char* argv[]){
     
     
     /* Bind socket to address */
-    if(bind(sock, serverptr, sizeof(server)) < 0){
+    if (bind(sock, serverptr, sizeof(server)) < 0) {
         #ifdef DEBUG
         perror("bind");
         #endif
@@ -80,7 +82,7 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
-    if(listen(sock, 5) < 0){
+    if (listen(sock, 5) < 0) {
         #ifdef DEBUG
         perror (" listen ");
         #endif
@@ -90,11 +92,11 @@ int main(int argc, char* argv[]){
     #endif
 
     socklen_t clientlen;
-    while(client_active){
+    while (client_active) {
         clientlen = sizeof(struct sockaddr_in);
 
         int temp_sock;
-        if((temp_sock = accept(sock, clientptr, &clientlen)) < 0){
+        if ((temp_sock = accept(sock, clientptr, &clientlen)) < 0) {
             #ifdef DEBUG
             perror("accept ");
             #endif
@@ -104,11 +106,11 @@ int main(int argc, char* argv[]){
         printf("Accepted connection \n") ;
         #endif
         
+        
         int *newsock = malloc(sizeof(int));
         *newsock = temp_sock;
-
         pthread_t client_th;
-        if(pthread_create(&client_th, NULL, handle_connection_th, newsock) != 0){
+        if (pthread_create(&client_th, NULL, handle_connection_th, newsock) != 0) {
             #ifdef DEBUG
             perror("pthread_create");
             #endif
@@ -123,4 +125,3 @@ int main(int argc, char* argv[]){
 
     return 0;
 }
-

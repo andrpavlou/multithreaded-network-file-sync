@@ -13,10 +13,10 @@
 
 
 int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, sync_info_mem_store **sync_info_head,
-    const char* source_full_path, const char *target_full_path, int fd_log, int write_sock){
-    
+                    const char* source_full_path, const char *target_full_path, int fd_log, int write_sock)
+{
     int sock_source_read;
-    if(establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)){
+    if (establish_connection(&sock_source_read, curr_cmd.source_ip, curr_cmd.source_port)) {
         #ifdef DEBUG
         perror("establish con");
         #endif
@@ -25,11 +25,12 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     }   
 
     char list_cmd_buff[BUFFSIZ];
-    int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), "LIST %s\r\n", curr_cmd.source_dir);
+    int list_len = snprintf(list_cmd_buff, sizeof(list_cmd_buff), 
+                    "LIST %s\r\n", curr_cmd.source_dir);
 
 
     // //========== Request List Command ========== //
-    if(write_all(sock_source_read, list_cmd_buff, list_len) == -1){
+    if (write_all(sock_source_read, list_cmd_buff, list_len) == -1) {
         #ifdef DEBUG
         perror("list write");
         #endif
@@ -39,7 +40,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     }
 
     char *list_reply_buff = NULL;
-    if(read_list_response(sock_source_read, &list_reply_buff)){
+    if (read_list_response(sock_source_read, &list_reply_buff)) {
         LOG_LIST_ERROR(curr_cmd, source_full_path, list_reply_buff, write_sock, fd_log);
 
         free(list_reply_buff);
@@ -51,8 +52,8 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
     unsigned int total_src_files = get_files_from_list_response(list_reply_buff, file_buff);
     
 
-    for(int i = 0; i < total_src_files; i++){
-        if(task_exists_add(queue_tasks, file_buff[i], curr_cmd) == TRUE){
+    for (int i = 0; i < total_src_files; i++) {
+        if (task_exists_add(queue_tasks, file_buff[i], curr_cmd) == TRUE) {
             
             ALREADY_IN_QUEUE_LOG(curr_cmd, file_buff[i], write_sock);
             continue;
@@ -89,7 +90,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
         // Check if the source full path is already inserted and keep that node, otherwise just insert it
         sync_info_mem_store *find_node;
-        if((find_node = find_sync_info((*sync_info_head), source_full_path, target_full_path)) != NULL){
+        if ((find_node = find_sync_info((*sync_info_head), source_full_path, target_full_path)) != NULL){
             new_task->node = find_node;
             enqueue_task(queue_tasks, new_task);
 
@@ -98,7 +99,7 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
         } 
         
         sync_info_mem_store *inserted_node = add_sync_info(sync_info_head, source_full_path, target_full_path);
-        if(inserted_node == NULL){
+        if (inserted_node == NULL) {
             #ifdef DEBUG
             perror("sync info insert");    
             #endif
@@ -121,25 +122,24 @@ int enqueue_add_cmd(const manager_command curr_cmd, sync_task_ts *queue_tasks, s
 
 
 
-int send_last_push_chunk(int sock_target_push, const char* filename, const char* target_dir){
+int send_last_push_chunk(int sock_target_push, const char* filename, const char* target_dir)
+{
     // Request_bytes = 0 -> just send push request with chunk size = 0 indicating the last push
     char push_buffer[BUFFSIZ];
     int push_len = snprintf(push_buffer, sizeof(push_buffer), "PUSH %s/%s %d\r\n", 
                                         target_dir,
                                         filename,
                                         0);
-    if(write_all(sock_target_push, push_buffer, push_len) == -1){
-        return 1;
-    }
-
+    if (write_all(sock_target_push, push_buffer, push_len) == -1) return 1;
+    
     return 0;
 }
 
 
 /*
-* Send -1 batch size to create the file if it's the first write,
-* otherwise send the bytes read from other host -> request_bytes
-*/
+ * Send -1 batch size to create the file if it's the first write,
+ * otherwise send the bytes read from other host -> request_bytes
+ */
 int send_header(const int sock_target_push, const bool is_first_write, int request_bytes, const char *target_dir, const char *filename){
     char header_buffer[BUFFSIZ];
     int write_batch_bytes   = is_first_write == TRUE ? -1 : request_bytes; 
@@ -156,7 +156,7 @@ int send_header(const int sock_target_push, const bool is_first_write, int reque
         return 1;
     }
     
-    if(write_all(sock_target_push, header_buffer, header_len) == -1){
+    if (write_all(sock_target_push, header_buffer, header_len) == -1) {
         #ifdef DEBUG
         fprintf(stderr, "Send header push\nFirst write:\t%s\nTarget Dir:\t%s\nFilename:\t%s\n", 
             is_first_write == TRUE ? "TRUE" : "FALSE",
@@ -172,12 +172,14 @@ int send_header(const int sock_target_push, const bool is_first_write, int reque
 
 
 
-int send_push_first_header(const int sock_target_push, int request_bytes, const char *target_dir, const char *filename){
-    if(send_header(sock_target_push, TRUE, request_bytes, target_dir, filename)){
+int send_push_first_header(const int sock_target_push, int request_bytes, 
+                            const char *target_dir, const char *filename)
+{
+    if (send_header(sock_target_push, TRUE, request_bytes, target_dir, filename)) {
         return 1;
     }
 
-    if(send_header(sock_target_push, FALSE, request_bytes, target_dir, filename)){
+    if (send_header(sock_target_push, FALSE, request_bytes, target_dir, filename)) {
         return 1;
     }
 
@@ -185,20 +187,19 @@ int send_push_first_header(const int sock_target_push, int request_bytes, const 
 }
 
 
-int send_push_header_generic(int sock_target_push, bool *is_first_push, int request_bytes, const char *target_dir, const char *filename){
-    if(*is_first_push == TRUE){
-        if(send_push_first_header(sock_target_push, request_bytes, target_dir, filename)){
-            return 1;
-        }
+int send_push_header_generic(int sock_target_push, bool *is_first_push, int request_bytes, 
+                                const char *target_dir, const char *filename)
+{
+    if (*is_first_push == TRUE) {
+        if (send_push_first_header(sock_target_push, request_bytes, target_dir, filename)) return 1;
+        
 
         *is_first_push = FALSE;
         return 0;
     }
 
-    if(send_header(sock_target_push, *is_first_push, request_bytes, target_dir, filename)){
-        return 1;
-    }
-
+    if (send_header(sock_target_push, *is_first_push, request_bytes, target_dir, filename)) return 1;
+    
     return 0;
 }
 
@@ -206,8 +207,9 @@ int send_push_header_generic(int sock_target_push, bool *is_first_push, int requ
 
 
 // No need to close() after this fails
-int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_push, const sync_task *task){
-    if(establish_connection(sock_source_read, task->manager_cmd.source_ip, task->manager_cmd.source_port)){
+int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_push, const sync_task *task)
+{
+    if (establish_connection(sock_source_read, task->manager_cmd.source_ip, task->manager_cmd.source_port)) {
         #ifdef DEBUG
         perror("establish con source");
         #endif
@@ -215,12 +217,14 @@ int establish_connections_for_add_cmd(int *sock_source_read, int *sock_target_pu
         return 1;
     }
     
-    if(establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)){
+    if (establish_connection(sock_target_push, task->manager_cmd.target_ip, task->manager_cmd.target_port)) {
         #ifdef DEBUG
         perror("establish con target");
         #endif
+        
         return 1;
     }
+
     return 0;
 }
 

@@ -14,14 +14,16 @@
 volatile sig_atomic_t manager_active = 1;
 
 
-static void handle_sigint(int sig){
+static void handle_sigint(int sig)
+{
     manager_active = 0;
 }
 
 
 
 // bin/nfs_manager -l logs/manager.log -c config.txt -n 5 -p 2525 -b 10
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[])
+{
     char *logfile       = NULL;
     char *config_file   = NULL;
     
@@ -30,18 +32,19 @@ int main(int argc, char *argv[]){
     int buffer_size     = -1;
 
     int check_args_status = check_args_manager(argc, argv, &logfile, &config_file, &worker_limit, &port, &buffer_size);
-    if(check_args_status == 1){
+    if (check_args_status == 1) {
         perror("USAGE: ./nfs_manager -l <logfile> -c <config_file> -n <worker_limit> -p <port> -b <buffer_size>");
         return 1;
     }
-    if(check_args_status == -1){
+
+    if (check_args_status == -1) {
         perror("ERROR: -b Must be > 0");
         return 1;
     }
 
     int fd_log;
-    if((fd_log = open(logfile, O_WRONLY | O_TRUNC | O_CREAT, 0664)) < 0){
-            #ifdef DEBUG
+    if ((fd_log = open(logfile, O_WRONLY | O_TRUNC | O_CREAT, 0664)) < 0) {
+        #ifdef DEBUG
         perror("open logfile");
         #endif
         return 1;
@@ -56,7 +59,7 @@ int main(int argc, char *argv[]){
 
     // Config file parsing
     int fd_config;
-    if((fd_config = open(config_file, O_RDONLY)) < 0){
+    if ((fd_config = open(config_file, O_RDONLY)) < 0) {
         #ifdef DEBUG
         perror("Config file open problem");
         #endif
@@ -70,7 +73,7 @@ int main(int argc, char *argv[]){
     
     
     sync_task_ts queue_tasks;
-    if(init_sync_task_ts(&queue_tasks, buffer_size)){
+    if (init_sync_task_ts(&queue_tasks, buffer_size)) {
         #ifdef DEBUG
         perror("init sync task");
         #endif
@@ -79,16 +82,14 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-
     sync_info_mem_store *sync_info_head = NULL;
-
 
     struct sockaddr_in server, client;
     struct sockaddr *serverptr = (struct sockaddr *) &server;
     struct sockaddr *clientptr = (struct sockaddr *) &client;
 
     int socket_manager = 0;
-    if((socket_manager = socket(AF_INET , SOCK_STREAM , 0)) < 0){
+    if ((socket_manager = socket(AF_INET , SOCK_STREAM , 0)) < 0) {
         #ifdef DEBUG
         perror("socket");
         #endif
@@ -102,7 +103,7 @@ int main(int argc, char *argv[]){
     server.sin_port         = htons(port); /* The given port */
     
     /* Bind socket to address */
-    if(bind(socket_manager, serverptr, sizeof(server)) < 0){
+    if (bind(socket_manager, serverptr, sizeof(server)) < 0) {
         #ifdef DEBUG
         perror("bind");
         #endif
@@ -110,7 +111,7 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    if(listen(socket_manager, 5) < 0){
+    if (listen(socket_manager, 5) < 0) {
         #ifdef DEBUG
         perror("listen");
         #endif
@@ -123,7 +124,7 @@ int main(int argc, char *argv[]){
     
     socklen_t clientlen     = sizeof(struct sockaddr_in);
     int socket_console_read = 0;
-    if((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0){
+    if ((socket_console_read = accept(socket_manager, clientptr, &clientlen)) < 0) {
         #ifdef DEBUG
         perror("accept ");
         #endif
@@ -136,7 +137,7 @@ int main(int argc, char *argv[]){
 
     // Thread pool, ready to execute tasks
     pthread_t *worker_th = malloc(worker_limit * sizeof(pthread_t));
-    for(int i = 0; i < worker_limit; i++){
+    for (int i = 0; i < worker_limit; i++) {
         thread_args *arglist = malloc(sizeof(thread_args));
 
         arglist->queue              = &queue_tasks;
@@ -147,7 +148,7 @@ int main(int argc, char *argv[]){
     }
 
 
-    if(conf_pairs_sync == FALSE){
+    if (conf_pairs_sync == FALSE) {
         enqueue_config_pairs(total_config_pairs, &sync_info_head, &queue_tasks, conf_pairs, fd_log, -1);
         conf_pairs_sync = TRUE;
     }
@@ -156,13 +157,12 @@ int main(int argc, char *argv[]){
     printf("Accepted connection \n") ;
     #endif
     
-    while(manager_active){
-
+    while (manager_active) {
         char read_buffer[BUFFSIZ];
         memset(read_buffer, 0, sizeof(read_buffer));
         
         ssize_t n_read;
-        if((n_read = read(socket_console_read, read_buffer, BUFFSIZ - 1)) <= 0){
+        if ((n_read = read(socket_console_read, read_buffer, BUFFSIZ - 1)) <= 0) {
             #ifdef DEBUG
             perror("Read from console");
             #endif
@@ -173,7 +173,7 @@ int main(int argc, char *argv[]){
         manager_command curr_cmd;
         char *source_full_path = NULL;
         char *target_full_path = NULL;
-        if(parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)){
+        if (parse_console_command(read_buffer, &curr_cmd, &source_full_path, &target_full_path)) {
             #ifdef DEBUG
             fprintf(stderr, "error: parse_command [%s]\n", read_buffer);
             #endif
@@ -182,9 +182,9 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        if(curr_cmd.op == ADD){
+        if (curr_cmd.op == ADD) {
             int status = enqueue_add_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path, target_full_path, fd_log, socket_console_read);
-            if(status){
+            if (status) {
                 #ifdef DEBUG
                 perror("enqueue add");
                 #endif
@@ -196,9 +196,9 @@ int main(int argc, char *argv[]){
             write(socket_console_read, "END\n", 4);
         }
 
-        if(curr_cmd.op == CANCEL){
+        if (curr_cmd.op == CANCEL) {
             int status = enqueue_cancel_cmd(curr_cmd, &queue_tasks, &sync_info_head, source_full_path);
-            if(status){
+            if (status) {
                 LOG_CANCEL_NOT_MONITORED(curr_cmd, socket_console_read);
                 write(socket_console_read, "END\n", 4);
             }
@@ -216,14 +216,14 @@ int main(int argc, char *argv[]){
 
 
     // *********** QUEUE THE POISON PILLS *********** //
-    for(int i = 0; i < worker_limit; i++){
+    for (int i = 0; i < worker_limit; i++) {
         sync_task *shutdown_task = calloc(1, sizeof(sync_task));
         shutdown_task->manager_cmd.op = SHUTDOWN;
 
         enqueue_task(&queue_tasks, shutdown_task);
     }
 
-    for(int i = 0; i < worker_limit; i++){
+    for (int i = 0; i < worker_limit; i++) {
         pthread_join(worker_th[i], NULL);
     }
 

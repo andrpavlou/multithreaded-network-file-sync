@@ -13,22 +13,23 @@
 #include "client_connection_handler.h"
 #include "socket_utils.h"
 
-static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_read){
+static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_read)
+{
     char current_char;
     ssize_t total_read = 0;
 
-    while(total_read < max_read - 1){
+    while (total_read < max_read - 1) {
         ssize_t read_b = read(socket, &current_char, 1);
         CHECK_READ(read_b, total_read, buffer);
 
         buffer[total_read++] = current_char;
         
-        if(current_char == '\r'){
+        if (current_char == '\r') {
             // Found \r so read one more byte to see if the pattern \r\n if found
             read_b = read(socket, &current_char, 1);
             CHECK_READ(read_b, total_read, buffer);
 
-            if(current_char == '\n'){
+            if (current_char == '\n') {
                 // Pattern found so just remove \r
                 buffer[total_read - 1] = '\0';
                 return total_read - 1;
@@ -43,10 +44,11 @@ static ssize_t read_command_from_manager(int socket, char *buffer, ssize_t max_r
     return total_read;
 }
 
-static int parse_manager_command(const char* buffer, client_command *full_command){
+static int parse_manager_command(const char* buffer, client_command *full_command)
+{
     memset(full_command->data, 0, BUFFSIZ);
 
-    if(!strncmp(buffer, "LIST", 4)){
+    if (!strncmp(buffer, "LIST", 4)) {
         full_command->op = LIST;
         strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
         full_command->path[BUFFSIZ - 1] = '\0';
@@ -54,7 +56,7 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
         return 0;
     }
 
-    if(!strncmp(buffer, "PULL", 4)) {
+    if (!strncmp(buffer, "PULL", 4)) {
         full_command->op = PULL;
         strncpy(full_command->path, &buffer[5], BUFFSIZ - 1);
         full_command->path[BUFFSIZ - 1] = '\0';
@@ -62,7 +64,7 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
         return 0;
     } 
 
-    if(!strncmp(buffer, "PUSH", 4)){
+    if (!strncmp(buffer, "PUSH", 4)) {
         full_command->op = PUSH;
 
         char tmp_buffer[2 * BUFFSIZ];
@@ -74,16 +76,16 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
         
         // thread safe instead of strtok
         token = strtok_r(NULL, " ", &saveptr);
-        if(!token) return 1;
+        if (!token) return 1;
 
         strncpy(full_command->path, token, BUFFSIZ - 1);
         full_command->path[BUFFSIZ - 1] = '\0';
         
         token = strtok_r(NULL, " ", &saveptr);
-        if(!token) return 1;
+        if (!token) return 1;
 
         full_command->chunk_size = atoi(token);
-        if(full_command->chunk_size < -1 || full_command->chunk_size > BUFFSIZ){
+        if (full_command->chunk_size < -1 || full_command->chunk_size > BUFFSIZ) {
             #ifdef DEBUG
             perror("invalid chunk size sent");
             #endif
@@ -92,11 +94,11 @@ static int parse_manager_command(const char* buffer, client_command *full_comman
 
 
         /* 
-        * Will not copy full_command->data right now it will be read directly
-        * in the exec command as the protocol is \r\n, so first read the command 
-        * get the batch size then expect it 
-        */
-        if(full_command->chunk_size == -1){
+         * Will not copy full_command->data right now it will be read directly
+         * in the exec command as the protocol is \r\n, so first read the command 
+         * get the batch size then expect it 
+         */
+        if (full_command->chunk_size == -1) {
             full_command->data[0] = '\0';
             return 0;
         }
@@ -152,8 +154,9 @@ static int get_filenames(const char *path, char filenames[][BUFFSIZ]){
 
 
 
-static int exec_cmd_client(client_command cmd, int newsock){
-    if(cmd.op == LIST){
+static int exec_cmd_client(client_command cmd, int newsock)
+{
+    if (cmd.op == LIST) {
         char clean_path[BUFFSIZ];
         strncpy(clean_path, cmd.path, BUFFSIZ - 1);
         // '\0' if there is newline in the path to ignore it
@@ -163,7 +166,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
         char src_files[MAX_FILES][BUFFSIZ];
         int src_files_count = get_filenames(clean_path, src_files);
 
-        if(src_files_count == -1){
+        if (src_files_count == -1) {
             char error_buf[BUFFSIZ];
             int len = snprintf(error_buf, sizeof(error_buf), "%s.\n", strerror(errno));
             
@@ -171,7 +174,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
             return -1;
         } 
 
-        for(int i = 0; i < src_files_count; i++){
+        for (int i = 0; i < src_files_count; i++) {
             char output_buff[BUFFSIZ];
             int len = snprintf(output_buff, sizeof(output_buff), "%s\n", src_files[i]);                
             write(newsock, output_buff, len);
@@ -181,9 +184,9 @@ static int exec_cmd_client(client_command cmd, int newsock){
         return 0;
     }
 
-    if(cmd.op == PULL){
+    if (cmd.op == PULL) {
         int fd_file_read = 0;
-        if((fd_file_read = open(cmd.path, O_RDONLY)) == -1){
+        if ((fd_file_read = open(cmd.path, O_RDONLY)) == -1) {
             char error_msg[BUFFSIZ];
             snprintf(error_msg, sizeof(error_msg), "-1 %s\n", strerror(errno));
 
@@ -198,7 +201,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
 
         char size_buf[BUFFSIZ / 4];
         int len = snprintf(size_buf, sizeof(size_buf), "%ld ", file_size);
-        if(write_all(newsock, size_buf, len) == -1){
+        if (write_all(newsock, size_buf, len) == -1) {
             #ifdef DEBUG
             perror("Write size");
             #endif
@@ -209,8 +212,8 @@ static int exec_cmd_client(client_command cmd, int newsock){
         
         ssize_t read_bytes;
         char buffer[BUFFSIZ];
-        while((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0){
-            if(write_all(newsock, buffer, read_bytes) == -1){
+        while ((read_bytes = read(fd_file_read, buffer, sizeof(buffer))) > 0) {
+            if (write_all(newsock, buffer, read_bytes) == -1) {
                 #ifdef DEBUG
                 perror("Write full");
                 #endif
@@ -224,13 +227,13 @@ static int exec_cmd_client(client_command cmd, int newsock){
         return 0;
     }
 
-    if(!cmd.chunk_size && cmd.op == PUSH) return 0; // final chunk, nothing to write
+    if (!cmd.chunk_size && cmd.op == PUSH) return 0; // final chunk, nothing to write
 
     // just create the file if chunk size is -1
-    if(cmd.op == PUSH && cmd.chunk_size == -1){
+    if (cmd.op == PUSH && cmd.chunk_size == -1) {
         int fd_file_write = open(cmd.path, O_WRONLY | O_TRUNC | O_CREAT, 0666);
         
-        if(fd_file_write == -1){
+        if (fd_file_write == -1) {
             #ifdef DEBUG
             perror("push open\n");
             #endif
@@ -241,11 +244,11 @@ static int exec_cmd_client(client_command cmd, int newsock){
         return 0;
     }
 
-    if(cmd.op == PUSH){
+    if (cmd.op == PUSH) {
         // Read the data because we send: PUSH file size\r\ndata
         // important because data might have \r\n in them
         ssize_t bytes_read = 0;
-        if((bytes_read = read_all(newsock, cmd.data, cmd.chunk_size)) < 0){
+        if ((bytes_read = read_all(newsock, cmd.data, cmd.chunk_size)) < 0) {
             #ifdef DEBUG
             perror("read exec command for push");
             #endif
@@ -255,7 +258,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
 
         int fd_file_write = open(cmd.path, O_WRONLY | O_APPEND);
         
-        if(fd_file_write == -1){
+        if (fd_file_write == -1) {
             #ifdef DEBUG
             perror("push open\n");
             #endif
@@ -263,7 +266,7 @@ static int exec_cmd_client(client_command cmd, int newsock){
         }
 
         ssize_t write_bytes = write(fd_file_write, cmd.data, cmd.chunk_size);
-        if(write_bytes != cmd.chunk_size){
+        if (write_bytes != cmd.chunk_size) {
             #ifdef DEBUG
             perror("Invalid written bytes");
             #endif
@@ -279,7 +282,8 @@ static int exec_cmd_client(client_command cmd, int newsock){
 }
 
 
-void* handle_connection_th(void* arg){
+void* handle_connection_th(void* arg)
+{
     int newsock = *(int*)arg;
     free(arg);
 
@@ -287,7 +291,7 @@ void* handle_connection_th(void* arg){
     char read_buffer[BUFFSIZ];
     memset(read_buffer, 0, sizeof(read_buffer));
 
-    while((n_read = read_command_from_manager(newsock, read_buffer, sizeof(read_buffer))) > 0){
+    while ((n_read = read_command_from_manager(newsock, read_buffer, sizeof(read_buffer))) > 0) {
         client_command current_cmd_struct;
 
         if(parse_manager_command(read_buffer, &current_cmd_struct)){
@@ -296,7 +300,7 @@ void* handle_connection_th(void* arg){
             #endif
             break;
         }
-        if(exec_cmd_client(current_cmd_struct, newsock)){
+        if (exec_cmd_client(current_cmd_struct, newsock)) {
             #ifdef DEBUG
             fprintf(stderr, "error: exec_cmd_client\n\n");
             #endif
